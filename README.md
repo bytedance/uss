@@ -1,6 +1,6 @@
 # AudioSet source separation
 
-This codebase provide a system to separate 527 kinds of sound classes in AudioSet. 
+This codebase provide a system to separate 527 kinds of sound classes in AudioSet. The code base is implemented with PyTorch 1.1. 
 
 ## Download 
 ## 1. Download dataset
