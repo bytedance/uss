@@ -7,6 +7,8 @@ This codebase provide a system to separate 527 kinds of sound classes in AudioSe
 Users need to download the balanced and evaluation subset from AudioSet and pack them to hdf5 file. Please follow Qiuqiang's audio_tagging source code bash file to download the balanced and evaluation subset and pack them to hdf5 file.  
 <pre>
 
+(AudioSet is already downloaded to /mnt/cephfs_new_wj/speechsv/qiuqiang.kong/datasets/audioset, a copy of packed  waveform can be found here: /mnt/cephfs_new_wj/speechsv/qiuqiang.kong/workspaces/pub_audioset_tagging_cnn_transfer/hdf5s)
+
 dataset_root
 ├── audios
 │    ├── balanced_train_segments
