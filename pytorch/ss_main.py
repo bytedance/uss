@@ -23,7 +23,7 @@ from data_generator import SsAudioSetDataset, SsBalancedSampler, collect_fn
 # from pytorch_utils import count_parameters, SedMix, debug_and_plot, move_data_to_device
 from pytorch_utils import count_parameters, SedMix, move_data_to_device
 from panns_inference import SoundEventDetection, AudioTagging
-# from evaluate import Evaluator
+from evaluate import Evaluator, average_dict
 
 
 def train(args):
@@ -68,6 +68,7 @@ def train(args):
     classes_num = config.classes_num
     segment_frames = config.segment_frames
     loss_func = get_loss_func(loss_type)
+    max_iteration = 1000
 
     # neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
     # eval_max_iteration = 2  # Number of mini_batches for validation
@@ -117,11 +118,11 @@ def train(args):
         indexes_hdf5_path=train_indexes_hdf5_path, 
         batch_size=batch_size)
         
-    bal_sampler = SsBalancedSampler(
+    eval_bal_sampler = SsBalancedSampler(
         indexes_hdf5_path=eval_bal_indexes_hdf5_path, 
         batch_size=batch_size)
 
-    test_sampler = SsBalancedSampler(
+    eval_test_sampler = SsBalancedSampler(
         indexes_hdf5_path=eval_test_indexes_hdf5_path, 
         batch_size=batch_size)
 
@@ -130,12 +131,12 @@ def train(args):
         batch_sampler=train_sampler, collate_fn=collect_fn, 
         num_workers=num_workers, pin_memory=True)
 
-    bal_loader = torch.utils.data.DataLoader(dataset=dataset, 
-        batch_sampler=bal_sampler, collate_fn=collect_fn, 
+    eval_bal_loader = torch.utils.data.DataLoader(dataset=dataset, 
+        batch_sampler=eval_bal_sampler, collate_fn=collect_fn, 
         num_workers=num_workers, pin_memory=True)
 
-    test_loader = torch.utils.data.DataLoader(dataset=dataset, 
-        batch_sampler=test_sampler, collate_fn=collect_fn, 
+    eval_test_loader = torch.utils.data.DataLoader(dataset=dataset, 
+        batch_sampler=eval_test_sampler, collate_fn=collect_fn, 
         num_workers=num_workers, pin_memory=True)
     
     # Load pretrained SED model. Do not change these parameters as they are 
@@ -199,6 +200,8 @@ def train(args):
     at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
+    evaluator = Evaluator(sed_mix=sed_mix, ss_model=ss_model, max_iteration=max_iteration)
+
     '''
     # Evaluator
     bal_evaluator = Evaluator(
@@ -225,13 +228,14 @@ def train(args):
         if (iteration % 2000 == 0 and iteration > resume_iteration) or (iteration == 0):
             train_fin_time = time.time()
 
-            bal_statistics = bal_evaluator.evaluate()
-            test_statistics = test_evaluator.evaluate()
-            
-            logging.info('Validate bal sdr: {:.3f}, sir: {:.3f}, sar: {:.3f}'.format(
-                bal_statistics['sdr'], bal_statistics['sir'], bal_statistics['sar']))
-            logging.info('Validate test sdr: {:.3f}, sir: {:.3f}, sar: {:.3f}'.format(
-                test_statistics['sdr'], test_statistics['sir'], test_statistics['sar']))
+            bal_statistics = evaluator.evaluate(eval_bal_loader)
+            test_statistics = evaluator.evaluate(eval_test_loader)
+
+            logging.info('sdr: {:.3f}, norm_sdr: {:.3f}'.format(
+                average_dict(bal_statistics['sdr']), average_dict(test_statistics['norm_sdr'])))
+
+            logging.info('sdr: {:.3f}, norm_sdr: {:.3f}'.format(
+                average_dict(bal_statistics['sdr']), average_dict(test_statistics['norm_sdr'])))
 
             statistics_container.append(iteration, bal_statistics, data_type='bal')
             statistics_container.append(iteration, test_statistics, data_type='test')
@@ -263,7 +267,7 @@ def train(args):
         
         # Get mixture and target data
         
-        batch_data_dict = sed_mix.get_mix_data(batch_10s_dict, sed_model, with_identity_zero=True)
+        batch_data_dict = sed_mix.get_mix_data(batch_10s_dict)
 
         if False:
             import crash
@@ -283,11 +287,11 @@ def train(args):
 
         # Forward
         ss_model.train()
-        batch_output = ss_model(
+        batch_output_dict = ss_model(
             batch_data_dict['mixture'], 
             batch_data_dict['hard_condition'])
 
-        loss = loss_func(batch_output['wav'], batch_data_dict['source'])
+        loss = loss_func(batch_output_dict['wav'], batch_data_dict['source'])
         print(loss)
 
         # Backward

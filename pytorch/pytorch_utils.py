@@ -86,9 +86,9 @@ class SedMix(object):
         return bgn_sample, end_sample
 
 
-    def get_mix_data(self, data_dict, sed_model, with_identity_zero): 
+    def get_mix_data(self, data_dict): 
 
-        framewise_output = sed_model.inference(data_dict['waveform'])
+        framewise_output = self.sed_model.inference(data_dict['waveform'])
         (audios_num, total_frames_num, classes_num) = framewise_output.shape
 
         # total_segs_num = segmentwise_output.shape[1]
@@ -163,21 +163,20 @@ class SedMix(object):
             # hard_conditions.append(id_to_one_hot(data_dict['class_id'][m], classes_num))
             # hard_conditions.append(id_to_one_hot(data_dict['class_id'][m2], classes_num))
                 
-        if with_identity_zero:
-            indexes = np.arange(len(mixtures))  # (0, 1, ..., batch_size)
-        else:
-            N = len(mixtures)
-            indexes = np.arange(N).reshape((N // 4, 4))[:, 0 : 2].flatten()
-            """(0, 1, 4, 5, 8, 9, ..., batch_size * 2 - 4, batch_size * 2 - 3)"""
+
+        # indexes = np.arange(len(mixtures))  # (0, 1, ..., batch_size)
+        # if with_identity_zero:
+        #     indexes = np.arange(len(mixtures))  # (0, 1, ..., batch_size)
+        # else:
+        #     N = len(mixtures)
+        #     indexes = np.arange(N).reshape((N // 4, 4))[:, 0 : 2].flatten()
+        #     """(0, 1, 4, 5, 8, 9, ..., batch_size * 2 - 4, batch_size * 2 - 3)"""
 
         output_dict = {
             'class_id': data_dict['class_id'],  # (batch_size,)
-            # 'clipwise_output': clipwise_output, # (batch_size,)
-            # 'segmentwise_output': segmentwise_output,   # (batch_size,)
-            'mixture': np.array(mixtures)[indexes][:, :, None], # (batch_size,) | (batch_size * 2,)
-            'source': np.array(sources)[indexes][:, :, None],   # (batch_size,) | (batch_size * 2,)
-            # 'soft_condition': np.array(soft_conditions)[indexes],   # (batch_size,) | (batch_size * 2,)
-            'hard_condition': np.array(hard_conditions)[indexes],   # (batch_size,) | (batch_size * 2,)
+            'mixture': np.array(mixtures)[:, :, None], # (batch_size,) | (batch_size * 2,)
+            'source': np.array(sources)[:, :, None],   # (batch_size,) | (batch_size * 2,)
+            'hard_condition': np.array(hard_conditions),   # (batch_size,) | (batch_size * 2,)
             }
 
         return output_dict
