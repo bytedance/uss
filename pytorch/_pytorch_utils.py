@@ -39,20 +39,17 @@ def count_parameters(model):
 
 
 class SedMix(object):
-    def __init__(self, sed_model, at_model, segment_frames, sample_rate):
+    def __init__(self, sed_model, neighbour_segs, sample_rate, device):
         self.sed_model = sed_model
-        self.at_model = at_model
-        self.segment_frames = segment_frames
+        self.neighbour_segs = neighbour_segs
         self.sample_rate = sample_rate
-        self.hop_samples = config.hop_samples
-        self.clip_samples = config.clip_samples
+        self.device = device
         # self.device = next(sed_model.module.parameters()).device
         # import crash
         # asdf
         # self.seg_hop_sec = sed_model.module.segment_hop_sec
         self.random_state = np.random.RandomState(1234)
 
-    '''
     def get_sample_bgn_fin_indexes(self, seg_index, neighbour_segs, total_segs_num, seg_hop_sec):
         bgn_seg_idx = seg_index - neighbour_segs
         fin_seg_idx = seg_index + neighbour_segs + 1
@@ -65,50 +62,33 @@ class SedMix(object):
         bgn_sample_idx = int((seg_hop_sec * self.sample_rate) * bgn_seg_idx)
         fin_sample_idx = int((seg_hop_sec * self.sample_rate) * fin_seg_idx)
         return bgn_sample_idx, fin_sample_idx
-    '''
-    def get_segment_bgn_end_samples(self, anchor_index, segment_frames):
-        bgn_frame = anchor_index - segment_frames // 2
-        end_frame = anchor_index + segment_frames // 2
-
-        bgn_sample = bgn_frame * self.hop_samples
-        end_sample = end_frame * self.hop_samples
-
-        segment_samples = segment_frames * self.hop_samples
-
-        if bgn_sample < 0:
-            bgn_sample = 0
-            end_sample = segment_samples
-
-        if end_sample > self.clip_samples:
-            bgn_sample = self.clip_samples - segment_samples
-            end_sample = self.clip_samples
-
-        return bgn_sample, end_sample
 
 
     def get_mix_data(self, data_dict, sed_model, with_identity_zero): 
+        (audios_num, classes_num) = data_dict['target'].shape
 
         framewise_output = sed_model.inference(data_dict['waveform'])
-        (audios_num, total_frames_num, classes_num) = framewise_output.shape
 
-        # total_segs_num = segmentwise_output.shape[1]
+        total_segs_num = segmentwise_output.shape[1]
 
         # Get segment with maximum prediction for a sound class
         # seg_predictions = []
         seg_waveforms = []
         for n in range(audios_num):
-            smoothed_framewise_output = np.convolve(
-                framewise_output[n, :, data_dict['class_id'][n]], np.ones(self.segment_frames), mode='same')
-            anchor_index = np.argmax(smoothed_framewise_output)
-
-            (bgn_sample, end_sample) = self.get_segment_bgn_end_samples(
-                anchor_index, self.segment_frames)
-
-            seg_waveforms.append(data_dict['waveform'][n, bgn_sample : end_sample])
+            seg_index = np.argmax(segmentwise_output[n, :, data_dict['class_id'][n]])
+            # seg_predictions.append(segmentwise_output[n, seg_index, :])
+            (bgn_sample_idx, fin_sample_idx) = self.get_sample_bgn_fin_indexes(
+                seg_index, self.neighbour_segs, total_segs_num, self.seg_hop_sec)
+            seg_waveforms.append(data_dict['waveform'][n, bgn_sample_idx : fin_sample_idx])
 
         seg_waveforms = np.array(seg_waveforms)
-        seg_predictions, _ = self.at_model.inference(seg_waveforms)
-        
+
+        # Predict tags of extracted segments
+        with torch.no_grad():
+            sed_model.eval()
+            _output_dict = sed_model(move_data_to_device(seg_waveforms, self.device))
+            seg_predictions = _output_dict['clipwise_output'].data.cpu().numpy()
+
         mixtures = []
         sources = []
         soft_conditions = []
@@ -119,49 +99,37 @@ class SedMix(object):
             seg_waveforms[n + 1] *= ratio
             mixture = seg_waveforms[n] + seg_waveforms[n + 1]
 
-            if False:
-                import crash
-                asdf 
-                K = 3
-                config.ix_to_lb[data_dict['class_id'][K]]
-                data_dict['target'][K]
-                [config.ix_to_lb[idx] for idx in np.argsort(seg_predictions[K])[::-1][0:10]]
-                librosa.output.write_wav('_zz.wav', data_dict['waveform'][K], sr=32000)
-                librosa.output.write_wav('_zz2.wav', seg_waveforms[K], sr=32000)
-                seg_predictions[K, data_dict['class_id'][K]]
-                np.max(framewise_output[K, :, data_dict['class_id'][K]])
-
             # Mixutres
             mixtures.append(mixture)
             mixtures.append(mixture)
-            # _rnd = np.random.randint(2)
-            # m = n + _rnd
-            # m2 = n + (1 - _rnd)
-            # mixtures.append(seg_waveforms[m])
-            # mixtures.append(seg_waveforms[m])
+            _rnd = np.random.randint(2)
+            m = n + _rnd
+            m2 = n + (1 - _rnd)
+            mixtures.append(seg_waveforms[m])
+            mixtures.append(seg_waveforms[m])
 
             # Targets
             sources.append(seg_waveforms[n])
             sources.append(seg_waveforms[n + 1])
-            # sources.append(seg_waveforms[m])
-            # sources.append(np.zeros_like(seg_waveforms[m]))
+            sources.append(seg_waveforms[m])
+            sources.append(np.zeros_like(seg_waveforms[m]))
             
             # Soft conditions
-            # soft_conditions.append(seg_predictions[n])
-            # soft_conditions.append(seg_predictions[n + 1])
-            # soft_conditions.append(seg_predictions[m])
+            soft_conditions.append(seg_predictions[n])
+            soft_conditions.append(seg_predictions[n + 1])
+            soft_conditions.append(seg_predictions[m])
 
             # f(x1, c2) -> 0. Make sure c2 and the prediction of x1 is exclusive. 
-            # for k in range(classes_num):
-            #     if seg_predictions[m, k] >= 0.02:
-            #         seg_predictions[m2, k] = 0.
-            # soft_conditions.append(seg_predictions[m2])
+            for k in range(classes_num):
+                if seg_predictions[m, k] >= 0.02:
+                    seg_predictions[m2, k] = 0.
+            soft_conditions.append(seg_predictions[m2])
             
             # Hard conditions
             hard_conditions.append(id_to_one_hot(data_dict['class_id'][n], classes_num))
             hard_conditions.append(id_to_one_hot(data_dict['class_id'][n + 1], classes_num))
-            # hard_conditions.append(id_to_one_hot(data_dict['class_id'][m], classes_num))
-            # hard_conditions.append(id_to_one_hot(data_dict['class_id'][m2], classes_num))
+            hard_conditions.append(id_to_one_hot(data_dict['class_id'][m], classes_num))
+            hard_conditions.append(id_to_one_hot(data_dict['class_id'][m2], classes_num))
                 
         if with_identity_zero:
             indexes = np.arange(len(mixtures))  # (0, 1, ..., batch_size)
@@ -173,10 +141,10 @@ class SedMix(object):
         output_dict = {
             'class_id': data_dict['class_id'],  # (batch_size,)
             # 'clipwise_output': clipwise_output, # (batch_size,)
-            # 'segmentwise_output': segmentwise_output,   # (batch_size,)
-            'mixture': np.array(mixtures)[indexes][:, :, None], # (batch_size,) | (batch_size * 2,)
-            'source': np.array(sources)[indexes][:, :, None],   # (batch_size,) | (batch_size * 2,)
-            # 'soft_condition': np.array(soft_conditions)[indexes],   # (batch_size,) | (batch_size * 2,)
+            'segmentwise_output': segmentwise_output,   # (batch_size,)
+            'mixture': np.array(mixtures)[indexes], # (batch_size,) | (batch_size * 2,)
+            'source': np.array(sources)[indexes],   # (batch_size,) | (batch_size * 2,)
+            'soft_condition': np.array(soft_conditions)[indexes],   # (batch_size,) | (batch_size * 2,)
             'hard_condition': np.array(hard_conditions)[indexes],   # (batch_size,) | (batch_size * 2,)
             }
 

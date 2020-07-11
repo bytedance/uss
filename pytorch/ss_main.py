@@ -1,7 +1,6 @@
 import os
 import sys
 import librosa
-
 sys.path.insert(1, os.path.join(sys.path[0], '../pytorch'))
 sys.path.insert(1, os.path.join(sys.path[0], '../utils'))
 import numpy as np
@@ -12,24 +11,19 @@ import time
 import logging
 import matplotlib.pyplot as plt
 from sklearn import metrics
-import _pickle as cPickle
 
 import torch
-torch.backends.cudnn.benchmark=True
-torch.manual_seed(0)
-import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-import torch.utils.data
-
-from sed_models import Cnn13_DecisionLevelMax
-from ss_models import UNet
+# from sed_models import Cnn13_DecisionLevelMax
+from models import UNet
 from utilities import (create_folder, get_filename, create_logging, StatisticsContainer)
 import config
 from losses import get_loss_func
 from data_generator import SsAudioSetDataset, SsBalancedSampler, collect_fn 
-from pytorch_utils import count_parameters, SedMix, debug_and_plot, move_data_to_device
-from evaluate import Evaluator
+# from pytorch_utils import count_parameters, SedMix, debug_and_plot, move_data_to_device
+from pytorch_utils import count_parameters, SedMix, move_data_to_device
+from panns_inference import SoundEventDetection, AudioTagging
+# from evaluate import Evaluator
 
 
 def train(args):
@@ -58,9 +52,9 @@ def train(args):
     at_checkpoint_path = args.at_checkpoint_path
     data_type = args.data_type
     model_type = args.model_type
-    condition_type = args.condition_type
-    wiener_filter = args.wiener_filter
     loss_type = args.loss_type
+    balanced = args.balanced
+    augmentation = args.augmentation
     batch_size = args.batch_size
     learning_rate = args.learning_rate
     resume_iteration = args.resume_iteration
@@ -70,46 +64,41 @@ def train(args):
 
     num_workers = 8
     sample_rate = config.sample_rate
-    audio_length = config.audio_length
+    clip_samples = config.clip_samples
     classes_num = config.classes_num
+    segment_frames = config.segment_frames
     loss_func = get_loss_func(loss_type)
-    neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
-    eval_max_iteration = 2  # Number of mini_batches for validation
+
+    # neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
+    # eval_max_iteration = 2  # Number of mini_batches for validation
     
-
     # Paths
-    waveform_hdf5s_dir = os.path.join(workspace, 'hdf5s', 'waveforms')
+    train_indexes_hdf5_path = os.path.join(workspace, 'hdf5s', 'indexes', 
+        '{}.h5'.format(data_type))
 
-    eval_train_targets_hdf5_path = os.path.join(workspace, 
-        'hdf5s', 'targets', 'balanced_train.h5')
+    eval_bal_indexes_hdf5_path = os.path.join(workspace, 
+        'hdf5s', 'indexes', 'balanced_train.h5')
 
-    eval_test_targets_hdf5_path = os.path.join(workspace, 'hdf5s', 'targets', 
+    eval_test_indexes_hdf5_path = os.path.join(workspace, 'hdf5s', 'indexes', 
         'eval.h5')
-
-    if data_type == 'balanced_train':
-        train_targets_hdf5_path = os.path.join(workspace, 'hdf5s', 'targets', 
-            'balanced_train.h5')
-    elif data_type == 'full_train':
-        train_targets_hdf5_path = os.path.join(workspace, 'hdf5s', 'targets', 
-            'full_train.h5')
 
     checkpoints_dir = os.path.join(workspace, 'checkpoints', filename, 
         'data_type={}'.format(data_type), model_type, 
-        'condition_type={}'.format(condition_type), 'wiener_filter={}'.format(wiener_filter), 
-        'loss_type={}'.format(loss_type), 'batch_size={}'.format(batch_size))
+        'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
+        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size))
     create_folder(checkpoints_dir)
     
     statistics_path = os.path.join(workspace, 'statistics', filename, 
         'data_type={}'.format(data_type), model_type, 
-        'condition_type={}'.format(condition_type), 'wiener_filter={}'.format(wiener_filter), 
-        'loss_type={}'.format(loss_type), 'batch_size={}'.format(batch_size), 
+        'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
+        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
         'statistics.pkl')
     create_folder(os.path.dirname(statistics_path))
 
     logs_dir = os.path.join(workspace, 'logs', filename, 
         'data_type={}'.format(data_type), model_type, 
-        'condition_type={}'.format(condition_type), 'wiener_filter={}'.format(wiener_filter), 
-        'loss_type={}'.format(loss_type), 'batch_size={}'.format(batch_size))
+        'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
+        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size))
 
     create_logging(logs_dir, filemode='w')
     logging.info(args)
@@ -121,68 +110,52 @@ def train(args):
         logging.info('Using CPU.')
         device = 'cpu'
 
-    # Dataset will be used by DataLoader later. Provide an index and return 
-    # waveform and target of audio
-    train_dataset = SsAudioSetDataset(
-        target_hdf5_path=train_targets_hdf5_path, 
-        waveform_hdf5s_dir=waveform_hdf5s_dir, 
-        audio_length=audio_length, 
-        classes_num=classes_num)
-
-    bal_dataset = SsAudioSetDataset(
-        target_hdf5_path=eval_train_targets_hdf5_path, 
-        waveform_hdf5s_dir=waveform_hdf5s_dir, 
-        audio_length=audio_length, 
-        classes_num=classes_num)
-
-    test_dataset = SsAudioSetDataset(
-        target_hdf5_path=eval_test_targets_hdf5_path, 
-        waveform_hdf5s_dir=waveform_hdf5s_dir, 
-        audio_length=audio_length, 
-        classes_num=classes_num)
+    dataset = SsAudioSetDataset(clip_samples=clip_samples, classes_num=classes_num)
 
     # Sampler
     train_sampler = SsBalancedSampler(
-        target_hdf5_path=train_targets_hdf5_path, 
+        indexes_hdf5_path=train_indexes_hdf5_path, 
         batch_size=batch_size)
         
     bal_sampler = SsBalancedSampler(
-        target_hdf5_path=eval_train_targets_hdf5_path, 
+        indexes_hdf5_path=eval_bal_indexes_hdf5_path, 
         batch_size=batch_size)
 
     test_sampler = SsBalancedSampler(
-        target_hdf5_path=eval_test_targets_hdf5_path, 
+        indexes_hdf5_path=eval_test_indexes_hdf5_path, 
         batch_size=batch_size)
 
     # Data loader
-    train_loader = torch.utils.data.DataLoader(dataset=train_dataset, 
+    train_loader = torch.utils.data.DataLoader(dataset=dataset, 
         batch_sampler=train_sampler, collate_fn=collect_fn, 
         num_workers=num_workers, pin_memory=True)
 
-    bal_loader = torch.utils.data.DataLoader(dataset=bal_dataset, 
+    bal_loader = torch.utils.data.DataLoader(dataset=dataset, 
         batch_sampler=bal_sampler, collate_fn=collect_fn, 
         num_workers=num_workers, pin_memory=True)
 
-    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, 
+    test_loader = torch.utils.data.DataLoader(dataset=dataset, 
         batch_sampler=test_sampler, collate_fn=collect_fn, 
         num_workers=num_workers, pin_memory=True)
     
     # Load pretrained SED model. Do not change these parameters as they are 
     # part of the pretrained SED model.
-    sed_model = Cnn13_DecisionLevelMax(sample_rate=32000, window_size=1024, 
-        hop_size=320, mel_bins=64, fmin=50, fmax=14000, classes_num=527)
+    # sed_model = Cnn13_DecisionLevelMax(sample_rate=32000, window_size=1024, 
+        # hop_size=320, mel_bins=64, fmin=50, fmax=14000, classes_num=527)
 
-    logging.info('Loading checkpoint {}'.format(at_checkpoint_path))
-    checkpoint = torch.load(at_checkpoint_path)
-    sed_model.load_state_dict(checkpoint['model'])
-    sed_model = torch.nn.DataParallel(sed_model)
+    
 
-    if 'cuda' in str(device):
-        sed_model.to(device)
+    # logging.info('Loading checkpoint {}'.format(at_checkpoint_path))
+    # checkpoint = torch.load(at_checkpoint_path)
+    # sed_model.load_state_dict(checkpoint['model'])
+    # sed_model = torch.nn.DataParallel(sed_model)
+
+    # if 'cuda' in str(device):
+    #     sed_model.to(device)
 
     # Source separation model
     SsModel = eval(model_type)
-    ss_model = SsModel(classes_num, condition_type, wiener_filter)
+    ss_model = SsModel(channels=1)
     
     params_num = count_parameters(ss_model)
     # flops_num = count_flops(model, audio_length)
@@ -220,8 +193,13 @@ def train(args):
     # Statistics
     statistics_container = StatisticsContainer(statistics_path)
     
-    sed_mix = SedMix(sed_model, neighbour_segs=neighbour_segs, sample_rate=sample_rate)
+    sed_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_DecisionLevelMax_mAP=0.385.pth'
+    at_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_mAP=0.431.pth'
+    sed_model = SoundEventDetection(device=device, checkpoint_path=sed_checkpoint_path)
+    at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
+    sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
+    '''
     # Evaluator
     bal_evaluator = Evaluator(
         generator=bal_loader, 
@@ -236,11 +214,12 @@ def train(args):
         sed_model=sed_model, 
         ss_model=ss_model, 
         max_iteration=eval_max_iteration)
-     
+    '''
     train_bgn_time = time.time()
     t1 = time.time()
 
     for batch_10s_dict in train_loader:
+        
         
         # Evaluate 
         if (iteration % 2000 == 0 and iteration > resume_iteration) or (iteration == 0):
@@ -274,7 +253,6 @@ def train(args):
             checkpoint = {
                 'iteration': iteration, 
                 'model': ss_model.module.state_dict(), 
-                'optimizer': optimizer.state_dict(), 
                 'sampler': train_sampler.state_dict()}
 
             checkpoint_path = os.path.join(
@@ -284,7 +262,17 @@ def train(args):
             logging.info('Model saved to {}'.format(checkpoint_path))
         
         # Get mixture and target data
+        
         batch_data_dict = sed_mix.get_mix_data(batch_10s_dict, sed_model, with_identity_zero=True)
+
+        if False:
+            import crash
+            asdf
+            K = 3
+            config.ix_to_lb[batch_data_dict['class_id'][K]]
+            batch_data_dict['hard_condition'][K]
+            librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'][K], sr=32000)
+            librosa.output.write_wav('_zz2.wav', batch_data_dict['source'][K], sr=32000)
         
         if False:
             debug_and_plot(ss_model, batch_10s_dict, batch_data_dict)
@@ -295,16 +283,11 @@ def train(args):
 
         # Forward
         ss_model.train()
-        batch_stft_output = ss_model(
+        batch_output = ss_model(
             batch_data_dict['mixture'], 
-            batch_data_dict['hard_condition'], 
-            batch_data_dict['soft_condition'])
+            batch_data_dict['hard_condition'])
 
-        # Target
-        batch_stft_source = ss_model.module.wavin_to_target(
-            batch_data_dict['source'])
-
-        loss = loss_func(batch_stft_output, batch_stft_source)
+        loss = loss_func(batch_output['wav'], batch_data_dict['source'])
         print(loss)
 
         # Backward
@@ -322,7 +305,7 @@ def train(args):
         if iteration == early_stop:
             break
 
-
+'''
 def validate(args):
     
     # Arugments & parameters
@@ -569,7 +552,7 @@ def inference_new(args):
             librosa.output.write_wav(sep_audio_path, separated_wav, sr=sample_rate)
             print('{} {}, {:.3f}. Write separated wav to {}'.format(
                 index, config.labels[index], at_prediction[index], sep_audio_path))
-
+'''
 
 if __name__ == '__main__':
 
@@ -581,39 +564,39 @@ if __name__ == '__main__':
     parser_train.add_argument('--at_checkpoint_path', type=str, required=True)
     parser_train.add_argument('--data_type', type=str, required=True)
     parser_train.add_argument('--model_type', type=str, required=True)
-    parser_train.add_argument('--condition_type', type=str, choices=['soft', 'soft_hard'], required=True)
-    parser_train.add_argument('--wiener_filter', action='store_true', default=False)
     parser_train.add_argument('--loss_type', type=str, required=True)
+    parser_train.add_argument('--balanced', type=str, default='balanced', choices=['balanced'])
+    parser_train.add_argument('--augmentation', type=str, default='mixup', choices=['none'])
     parser_train.add_argument('--batch_size', type=int, required=True)
     parser_train.add_argument('--early_stop', type=int, required=True)
     parser_train.add_argument('--learning_rate', type=float, required=True)
     parser_train.add_argument('--resume_iteration', type=int, required=True)
     parser_train.add_argument('--cuda', action='store_true', default=False)
 
-    parser_train = subparsers.add_parser('validate')
-    parser_train.add_argument('--workspace', type=str, required=True)
-    parser_train.add_argument('--at_checkpoint_path', type=str, required=True)
-    parser_train.add_argument('--data_type', type=str, required=True)
-    parser_train.add_argument('--model_type', type=str, required=True)
-    parser_train.add_argument('--condition_type', type=str, choices=['soft', 'soft_hard'], required=True)
-    parser_train.add_argument('--wiener_filter', action='store_true', default=False)
-    parser_train.add_argument('--loss_type', type=str, required=True)
-    parser_train.add_argument('--batch_size', type=int, required=True)
-    parser_train.add_argument('--iteration', type=int, required=True)
-    parser_train.add_argument('--cuda', action='store_true', default=False)
+    # parser_train = subparsers.add_parser('validate')
+    # parser_train.add_argument('--workspace', type=str, required=True)
+    # parser_train.add_argument('--at_checkpoint_path', type=str, required=True)
+    # parser_train.add_argument('--data_type', type=str, required=True)
+    # parser_train.add_argument('--model_type', type=str, required=True)
+    # parser_train.add_argument('--condition_type', type=str, choices=['soft', 'soft_hard'], required=True)
+    # parser_train.add_argument('--wiener_filter', action='store_true', default=False)
+    # parser_train.add_argument('--loss_type', type=str, required=True)
+    # parser_train.add_argument('--batch_size', type=int, required=True)
+    # parser_train.add_argument('--iteration', type=int, required=True)
+    # parser_train.add_argument('--cuda', action='store_true', default=False)
     
-    parser_inference_new = subparsers.add_parser('inference_new')
-    parser_inference_new.add_argument('--workspace', type=str, required=True)
-    parser_inference_new.add_argument('--at_checkpoint_path', type=str, required=True)
-    parser_inference_new.add_argument('--data_type', type=str, required=True)
-    parser_inference_new.add_argument('--model_type', type=str, required=True)
-    parser_inference_new.add_argument('--condition_type', type=str, choices=['soft', 'soft_hard'], required=True)
-    parser_inference_new.add_argument('--wiener_filter', action='store_true', default=False)
-    parser_inference_new.add_argument('--loss_type', type=str, required=True)
-    parser_inference_new.add_argument('--batch_size', type=int, required=True)
-    parser_inference_new.add_argument('--iteration', type=int, required=True)
-    parser_inference_new.add_argument('--cuda', action='store_true', default=False)
-    parser_inference_new.add_argument('--new_audio_path', type=str, default='')
+    # parser_inference_new = subparsers.add_parser('inference_new')
+    # parser_inference_new.add_argument('--workspace', type=str, required=True)
+    # parser_inference_new.add_argument('--at_checkpoint_path', type=str, required=True)
+    # parser_inference_new.add_argument('--data_type', type=str, required=True)
+    # parser_inference_new.add_argument('--model_type', type=str, required=True)
+    # parser_inference_new.add_argument('--condition_type', type=str, choices=['soft', 'soft_hard'], required=True)
+    # parser_inference_new.add_argument('--wiener_filter', action='store_true', default=False)
+    # parser_inference_new.add_argument('--loss_type', type=str, required=True)
+    # parser_inference_new.add_argument('--batch_size', type=int, required=True)
+    # parser_inference_new.add_argument('--iteration', type=int, required=True)
+    # parser_inference_new.add_argument('--cuda', action='store_true', default=False)
+    # parser_inference_new.add_argument('--new_audio_path', type=str, default='')
 
     args = parser.parse_args()
     args.filename = get_filename(__file__)
@@ -621,11 +604,11 @@ if __name__ == '__main__':
     if args.mode == 'train':
         train(args)
 
-    if args.mode == 'validate':
-        validate(args)
+    # if args.mode == 'validate':
+    #     validate(args)
 
-    elif args.mode == 'inference_new':
-        inference_new(args)
+    # elif args.mode == 'inference_new':
+    #     inference_new(args)
 
     else:
         raise Exception('Error argument!')

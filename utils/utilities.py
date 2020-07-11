@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats 
 import datetime
-import _pickle as cPickle
+import pickle
 
 
 def create_folder(fd):
@@ -79,13 +79,13 @@ class StatisticsContainer(object):
         self.statistics_dict[data_type].append(statistics)
         
     def dump(self):
-        cPickle.dump(self.statistics_dict, open(self.statistics_path, 'wb'))
-        cPickle.dump(self.statistics_dict, open(self.backup_statistics_path, 'wb'))
+        pickle.dump(self.statistics_dict, open(self.statistics_path, 'wb'))
+        pickle.dump(self.statistics_dict, open(self.backup_statistics_path, 'wb'))
         logging.info('    Dump statistics to {}'.format(self.statistics_path))
         logging.info('    Dump statistics to {}'.format(self.backup_statistics_path))
         
     def load_state_dict(self, resume_iteration):
-        self.statistics_dict = cPickle.load(open(self.statistics_path, 'rb'))
+        self.statistics_dict = pickle.load(open(self.statistics_path, 'rb'))
 
         resume_statistics_dict = {'bal': [], 'test': []}
         
