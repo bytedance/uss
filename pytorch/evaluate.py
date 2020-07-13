@@ -23,7 +23,7 @@ import config
 #             if data_dict['target'][k] == 1:
 #                 new_list_data_dict.append(data_dict)
 
-
+'''
 def calculate_sdr(ref, est):
     s_true = ref
     s_artif = est - ref
@@ -31,14 +31,29 @@ def calculate_sdr(ref, est):
         np.log10(np.clip(np.mean(s_true ** 2), 1e-8, np.inf)) \
         - np.log10(np.clip(np.mean(s_artif ** 2), 1e-8, np.inf)))
     return sdr
- 
+'''
+
+def calculate_sdr(ref, est, scaling=False):
+    if scaling:
+        alpha = np.dot(est, ref) / np.clip(np.dot(ref, ref), 1e-8, np.inf)
+    else:
+        alpha = 1.
+
+    # s_true = ref
+    # s_artif = est - ref
+    s_true = alpha * ref
+    s_artif = s_true - est
+    sdr = 10. * (
+        np.log10(np.clip(np.mean(s_true ** 2), 1e-8, np.inf)) \
+        - np.log10(np.clip(np.mean(s_artif ** 2), 1e-8, np.inf)))
+    return sdr
+
 
 class Evaluator(object):
-    def __init__(self, sed_mix, ss_model, max_iteration):
+    def __init__(self, sed_mix, ss_model):
         # self.generator = generator
         self.sed_mix = sed_mix
         self.ss_model = ss_model
-        self.max_iteration = max_iteration
         self.device = next(ss_model.parameters()).device
         self.classes_num = config.classes_num
          
@@ -55,9 +70,6 @@ class Evaluator(object):
         for iteration, batch_10s_dict in enumerate(generator):
             if iteration % 10 == 0:
                 print(iteration)
-
-            if iteration == self.max_iteration:
-                break
 
             audios_num = len(batch_10s_dict['audio_name'])
 
@@ -79,16 +91,24 @@ class Evaluator(object):
                 batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()            
 
             for n in range(0, audios_num):
-                sdr = calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[n, :, 0], batch_sep_wavs[n, :, 0])
-                norm_sdr = sdr - calculate_sdr(
-                    batch_data_dict['source'].data.cpu().numpy()[n, :, 0], 
-                    batch_data_dict['mixture'].data.cpu().numpy()[n, :, 0])
+                sdr = calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[n, :, 0], batch_sep_wavs[n, :, 0], scaling=True)
+                # norm_sdr = sdr - calculate_sdr(
+                #     batch_data_dict['source'].data.cpu().numpy()[n, :, 0], 
+                #     batch_data_dict['mixture'].data.cpu().numpy()[n, :, 0], scaling=True)
 
                 class_id = batch_data_dict['class_id'].data.cpu().numpy()[n]
                 sdr_dict[class_id].append(sdr)
-                norm_sdr_dict[class_id].append(norm_sdr)
+                # norm_sdr_dict[class_id].append(norm_sdr)
 
-        result_dict = {'sdr': sdr_dict, 'norm_sdr': norm_sdr_dict}
+            # import crash
+            # asdf
+            # librosa.output.write_wav('_zz.wav', batch_data_dict['source'].data.cpu().numpy()[n, :, 0], sr=32000)
+            # librosa.output.write_wav('_zz2.wav', batch_data_dict['mixture'].data.cpu().numpy()[n, :, 0], sr=32000)
+            # librosa.output.write_wav('_zz3.wav', batch_sep_wavs[n, :, 0], sr=32000)
+            # calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[n, :, 0], batch_data_dict['mixture'].data.cpu().numpy()[n, :, 0])
+
+        # result_dict = {'sdr': sdr_dict, 'norm_sdr': norm_sdr_dict}
+        result_dict = {'sdr': sdr_dict}
         return result_dict
 
 def average_dict(metric_dict):

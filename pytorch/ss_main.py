@@ -11,6 +11,7 @@ import time
 import logging
 import matplotlib.pyplot as plt
 from sklearn import metrics
+import pickle
 
 import torch
 import torch.optim as optim
@@ -19,11 +20,11 @@ from models import UNet
 from utilities import (create_folder, get_filename, create_logging, StatisticsContainer)
 import config
 from losses import get_loss_func
-from data_generator import SsAudioSetDataset, SsBalancedSampler, collect_fn 
+from data_generator import SsAudioSetDataset, SsBalancedSampler, SsEvaluateSampler, collect_fn 
 # from pytorch_utils import count_parameters, SedMix, debug_and_plot, move_data_to_device
 from pytorch_utils import count_parameters, SedMix, move_data_to_device
 from panns_inference import SoundEventDetection, AudioTagging
-from evaluate import Evaluator, average_dict
+from evaluate import Evaluator, average_dict, calculate_sdr
 
 
 def train(args):
@@ -68,7 +69,8 @@ def train(args):
     classes_num = config.classes_num
     segment_frames = config.segment_frames
     loss_func = get_loss_func(loss_type)
-    max_iteration = 1000
+    # max_iteration = 10
+    max_iteration = int(np.ceil(classes_num * 50 / batch_size))
 
     # neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
     # eval_max_iteration = 2  # Number of mini_batches for validation
@@ -118,13 +120,13 @@ def train(args):
         indexes_hdf5_path=train_indexes_hdf5_path, 
         batch_size=batch_size)
         
-    eval_bal_sampler = SsBalancedSampler(
+    eval_bal_sampler = SsEvaluateSampler(
         indexes_hdf5_path=eval_bal_indexes_hdf5_path, 
-        batch_size=batch_size)
+        batch_size=batch_size, max_iteration=max_iteration)
 
-    eval_test_sampler = SsBalancedSampler(
+    eval_test_sampler = SsEvaluateSampler(
         indexes_hdf5_path=eval_test_indexes_hdf5_path, 
-        batch_size=batch_size)
+        batch_size=batch_size, max_iteration=max_iteration)
 
     # Data loader
     train_loader = torch.utils.data.DataLoader(dataset=dataset, 
@@ -200,7 +202,7 @@ def train(args):
     at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
-    evaluator = Evaluator(sed_mix=sed_mix, ss_model=ss_model, max_iteration=max_iteration)
+    evaluator = Evaluator(sed_mix=sed_mix, ss_model=ss_model)
 
     '''
     # Evaluator
@@ -225,17 +227,22 @@ def train(args):
         
         
         # Evaluate 
-        if (iteration % 2000 == 0 and iteration > resume_iteration) or (iteration == 0):
+        if (iteration % 10000 == 0 and iteration > resume_iteration) or (iteration == 0):
             train_fin_time = time.time()
 
-            bal_statistics = evaluator.evaluate(eval_bal_loader)
+            bal_statistics = evaluator.evaluate(eval_bal_loader) 
             test_statistics = evaluator.evaluate(eval_test_loader)
 
+            '''
             logging.info('sdr: {:.3f}, norm_sdr: {:.3f}'.format(
-                average_dict(bal_statistics['sdr']), average_dict(test_statistics['norm_sdr'])))
+                average_dict(bal_statistics['sdr']), average_dict(bal_statistics['norm_sdr'])))
 
             logging.info('sdr: {:.3f}, norm_sdr: {:.3f}'.format(
-                average_dict(bal_statistics['sdr']), average_dict(test_statistics['norm_sdr'])))
+                average_dict(test_statistics['sdr']), average_dict(test_statistics['norm_sdr'])))
+            '''
+
+            logging.info('si-sdr: {:.3f}'.format(average_dict(bal_statistics['sdr'])))
+            logging.info('si-sdr: {:.3f}'.format(average_dict(test_statistics['sdr'])))
 
             statistics_container.append(iteration, bal_statistics, data_type='bal')
             statistics_container.append(iteration, test_statistics, data_type='test')
@@ -309,17 +316,73 @@ def train(args):
         if iteration == early_stop:
             break
 
-'''
-def validate(args):
+
+def print_stat(args):
+    statistics_path = '/home/tiger/workspaces/audioset_source_separation/statistics/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/batch_size=12/statistics.pkl'
+
+    stat_dict = pickle.load(open(statistics_path, 'rb'))
+    average_dict(stat_dict['test'][-1]['sdr'])
+
+    tmp_dict = stat_dict['test'][-1]['sdr']
+    values = []
+
+    for key in range(config.classes_num):
+        values.append(np.mean(tmp_dict[key]))
+
+    values = np.array(values)
+    indexes = np.argsort(values)[::-1]
+
+    plt.figure(figsize=(12, 2))
+    plt.plot(np.zeros(config.classes_num))
+    plt.plot(values[indexes])
+    plt.xticks(np.arange(config.classes_num), np.array(config.labels)[indexes], rotation='270', fontsize=2)
+
+    if True:
+        tmp_dict = stat_dict['test'][20]['sdr']
+        values = []
+        for key in range(config.classes_num):
+            values.append(np.mean(tmp_dict[key]))
+        values = np.array(values)
+        # indexes = np.argsort(values)[::-1]
+        plt.plot(values[indexes])
+
+    plt.tight_layout()
+    plt.savefig('_zz.pdf')
+
+    import crash
+    asdf
+
     
+
+def validate(args):
+    """Train AudioSet tagging model. 
+
+    Args:
+      dataset_dir: str
+      workspace: str
+      data_type: 'balanced_train' | 'unbalanced_train'
+      frames_per_second: int
+      mel_bins: int
+      model_type: str
+      loss_type: 'bce'
+      balanced: bool
+      augmentation: str
+      batch_size: int
+      learning_rate: float
+      resume_iteration: int
+      early_stop: int
+      accumulation_steps: int
+      cuda: bool
+    """
+
     # Arugments & parameters
     workspace = args.workspace
     at_checkpoint_path = args.at_checkpoint_path
     data_type = args.data_type
     model_type = args.model_type
-    condition_type = args.condition_type
-    wiener_filter = args.wiener_filter
     loss_type = args.loss_type
+    balanced = args.balanced
+    augmentation = args.augmentation
     batch_size = args.batch_size
     iteration = args.iteration
     device = torch.device('cuda') if args.cuda and torch.cuda.is_available() else torch.device('cpu')
@@ -327,40 +390,27 @@ def validate(args):
 
     num_workers = 8
     sample_rate = config.sample_rate
-    audio_length = config.audio_length
+    clip_samples = config.clip_samples
     classes_num = config.classes_num
-    neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
-    eval_max_iteration = 100  # Number of mini_batches for validation
+    segment_frames = config.segment_frames
+    loss_func = get_loss_func(loss_type)
+    max_iteration = 1000
+
+    # neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
+    # eval_max_iteration = 2  # Number of mini_batches for validation
     
     # Paths
-    waveform_hdf5s_dir = os.path.join(workspace, 'hdf5s', 'waveforms')
+    eval_bal_indexes_hdf5_path = os.path.join(workspace, 
+        'hdf5s', 'indexes', 'balanced_train.h5')
 
-    eval_train_targets_hdf5_path = os.path.join(workspace, 
-        'hdf5s', 'targets', 'balanced_train.h5')
-
-    eval_test_targets_hdf5_path = os.path.join(workspace, 'hdf5s', 'targets', 
+    eval_test_indexes_hdf5_path = os.path.join(workspace, 'hdf5s', 'indexes', 
         'eval.h5')
 
-    ss_checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
+    checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
         'data_type={}'.format(data_type), model_type, 
-        'condition_type={}'.format(condition_type), 'wiener_filter={}'.format(wiener_filter), 
-        'loss_type={}'.format(loss_type), 'batch_size={}'.format(batch_size), 
+        'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
+        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
         '{}_iterations.pth'.format(iteration))
-
-    results_path = os.path.join(workspace, 'results', filename, 
-        'data_type={}'.format(data_type), model_type, 
-        'condition_type={}'.format(condition_type), 'wiener_filter={}'.format(wiener_filter), 
-        'loss_type={}'.format(loss_type), 'batch_size={}'.format(batch_size), 
-        '{}_iterations.pth'.format(iteration))
-    create_folder(os.path.dirname(results_path))
-    
-    logs_dir = os.path.join(workspace, 'logs', filename, 
-        'data_type={}'.format(data_type), model_type, 
-        'condition_type={}'.format(condition_type), 'wiener_filter={}'.format(wiener_filter), 
-        'loss_type={}'.format(loss_type), 'batch_size={}'.format(batch_size))
-
-    create_logging(logs_dir, filemode='w')
-    logging.info(args)
     
     if 'cuda' in str(device):
         logging.info('Using GPU.')
@@ -369,56 +419,32 @@ def validate(args):
         logging.info('Using CPU.')
         device = 'cpu'
 
-    # Dataset will be used by DataLoader later. Provide an index and return 
-    # waveform and target of audio
-    bal_dataset = SsAudioSetDataset(
-        target_hdf5_path=eval_train_targets_hdf5_path, 
-        waveform_hdf5s_dir=waveform_hdf5s_dir, 
-        audio_length=audio_length, 
-        classes_num=classes_num)
-
-    test_dataset = SsAudioSetDataset(
-        target_hdf5_path=eval_test_targets_hdf5_path, 
-        waveform_hdf5s_dir=waveform_hdf5s_dir, 
-        audio_length=audio_length, 
-        classes_num=classes_num)
+    dataset = SsAudioSetDataset(clip_samples=clip_samples, classes_num=classes_num)
 
     # Sampler
-    bal_sampler = SsBalancedSampler(
-        target_hdf5_path=eval_train_targets_hdf5_path, 
+    eval_bal_sampler = SsBalancedSampler(
+        indexes_hdf5_path=eval_bal_indexes_hdf5_path, 
         batch_size=batch_size)
 
-    test_sampler = SsBalancedSampler(
-        target_hdf5_path=eval_test_targets_hdf5_path, 
+    eval_test_sampler = SsBalancedSampler(
+        indexes_hdf5_path=eval_test_indexes_hdf5_path, 
         batch_size=batch_size)
 
     # Data loader
-    bal_loader = torch.utils.data.DataLoader(dataset=bal_dataset, 
-        batch_sampler=bal_sampler, collate_fn=collect_fn, 
+    eval_bal_loader = torch.utils.data.DataLoader(dataset=dataset, 
+        batch_sampler=eval_bal_sampler, collate_fn=collect_fn, 
         num_workers=num_workers, pin_memory=True)
 
-    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, 
-        batch_sampler=test_sampler, collate_fn=collect_fn, 
+    eval_test_loader = torch.utils.data.DataLoader(dataset=dataset, 
+        batch_sampler=eval_test_sampler, collate_fn=collect_fn, 
         num_workers=num_workers, pin_memory=True)
     
-    # Load pretrained SED model. Do not change these parameters as they are 
-    # part of the pretrained SED model.
-    sed_model = Cnn13_DecisionLevelMax(sample_rate=32000, window_size=1024, 
-        hop_size=320, mel_bins=64, fmin=50, fmax=14000, classes_num=527)
-
-    logging.info('Loading checkpoint {}'.format(at_checkpoint_path))
-    checkpoint = torch.load(at_checkpoint_path)
-    sed_model.load_state_dict(checkpoint['model'])
-    sed_model = torch.nn.DataParallel(sed_model)
-
-    if 'cuda' in str(device):
-        sed_model.to(device)
-
-    # Load source separation model
+    # Source separation model
     SsModel = eval(model_type)
-    ss_model = SsModel(classes_num, condition_type, wiener_filter)
-    logging.info('Loading source separation checkpoint {}'.format(at_checkpoint_path))
-    checkpoint = torch.load(ss_checkpoint_path)
+    ss_model = SsModel(channels=1)
+    
+    # Resume training
+    checkpoint = torch.load(checkpoint_path)
     ss_model.load_state_dict(checkpoint['model'])
     
     # Parallel
@@ -428,31 +454,62 @@ def validate(args):
     if 'cuda' in str(device):
         ss_model.to(device)
     
-    sed_mix = SedMix(sed_model, neighbour_segs=neighbour_segs, sample_rate=sample_rate)
+    sed_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_DecisionLevelMax_mAP=0.385.pth'
+    at_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_mAP=0.431.pth'
+    sed_model = SoundEventDetection(device=device, checkpoint_path=sed_checkpoint_path)
+    at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
+    sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
-    # Evaluator
-    bal_evaluator = Evaluator(
-        generator=bal_loader, 
-        sed_mix=sed_mix, 
-        sed_model=sed_model, 
-        ss_model=ss_model, 
-        max_iteration=eval_max_iteration)
+    evaluator = Evaluator(sed_mix=sed_mix, ss_model=ss_model, max_iteration=max_iteration)
 
-    test_evaluator = Evaluator(
-        generator=bal_loader, 
-        sed_mix=sed_mix, 
-        sed_model=sed_model, 
-        ss_model=ss_model, 
-        max_iteration=eval_max_iteration)
+    for iteration, batch_10s_dict in enumerate(eval_test_loader):
+        if iteration % 10 == 0:
+            print(iteration)
 
-    bal_results = bal_evaluator.calculate_result_dict()
-    test_results = test_evaluator.calculate_result_dict()
+        if iteration == max_iteration:
+            break
 
-    results_dict = {'bal': bal_results, 'test': test_results}
-    cPickle.dump(results_dict, open(results_path, 'wb'))
-    logging.info('Save results to {}'.format(results_path))
+        audios_num = len(batch_10s_dict['audio_name'])
+
+        # Get mixture and target data
+        batch_data_dict = sed_mix.get_mix_data(batch_10s_dict)
+
+        # Move data to device
+        for key in batch_data_dict.keys():
+            batch_data_dict[key] = move_data_to_device(batch_data_dict[key], device)
+
+        # Separate
+        with torch.no_grad():
+            ss_model.eval()
+
+            batch_output_dict = ss_model(
+                batch_data_dict['mixture'], 
+                batch_data_dict['hard_condition'])
+
+            batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()
+
+        
+        sdr_dict = {k: [] for k in range(classes_num)}
+        for n in range(0, audios_num):
+            sdr = calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[n, :, 0], batch_sep_wavs[n, :, 0], scaling=True)
+            # norm_sdr = sdr - calculate_sdr(
+            #     batch_data_dict['source'].data.cpu().numpy()[n, :, 0], 
+            #     batch_data_dict['mixture'].data.cpu().numpy()[n, :, 0], scaling=True)
+
+            class_id = batch_data_dict['class_id'].data.cpu().numpy()[n]
+            sdr_dict[class_id].append(sdr)
+
+        import crash
+        asdf
+        K = 11
+        calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[K, :, 0], batch_sep_wavs[K, :, 0], scaling=True)
+        librosa.output.write_wav('_zz.wav', batch_data_dict['source'].data.cpu().numpy()[K, :, 0], sr=32000)
+        librosa.output.write_wav('_zz2.wav', batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], sr=32000)
+        librosa.output.write_wav('_zz3.wav', batch_sep_wavs[K, :, 0], sr=32000)
+    
 
 
+'''
 def inference_new(args):
     
     # Arugments & parameters
@@ -577,17 +634,19 @@ if __name__ == '__main__':
     parser_train.add_argument('--resume_iteration', type=int, required=True)
     parser_train.add_argument('--cuda', action='store_true', default=False)
 
-    # parser_train = subparsers.add_parser('validate')
-    # parser_train.add_argument('--workspace', type=str, required=True)
-    # parser_train.add_argument('--at_checkpoint_path', type=str, required=True)
-    # parser_train.add_argument('--data_type', type=str, required=True)
-    # parser_train.add_argument('--model_type', type=str, required=True)
-    # parser_train.add_argument('--condition_type', type=str, choices=['soft', 'soft_hard'], required=True)
-    # parser_train.add_argument('--wiener_filter', action='store_true', default=False)
-    # parser_train.add_argument('--loss_type', type=str, required=True)
-    # parser_train.add_argument('--batch_size', type=int, required=True)
-    # parser_train.add_argument('--iteration', type=int, required=True)
-    # parser_train.add_argument('--cuda', action='store_true', default=False)
+    parser_print = subparsers.add_parser('print')
+
+    parser_train = subparsers.add_parser('validate')
+    parser_train.add_argument('--workspace', type=str, required=True)
+    parser_train.add_argument('--at_checkpoint_path', type=str, required=True)
+    parser_train.add_argument('--data_type', type=str, required=True)
+    parser_train.add_argument('--model_type', type=str, required=True)
+    parser_train.add_argument('--loss_type', type=str, required=True)
+    parser_train.add_argument('--balanced', type=str, default='balanced', choices=['balanced'])
+    parser_train.add_argument('--augmentation', type=str, default='mixup', choices=['none'])
+    parser_train.add_argument('--batch_size', type=int, required=True)
+    parser_train.add_argument('--iteration', type=int, required=True)
+    parser_train.add_argument('--cuda', action='store_true', default=False)
     
     # parser_inference_new = subparsers.add_parser('inference_new')
     # parser_inference_new.add_argument('--workspace', type=str, required=True)
@@ -608,8 +667,11 @@ if __name__ == '__main__':
     if args.mode == 'train':
         train(args)
 
-    # if args.mode == 'validate':
-    #     validate(args)
+    elif args.mode == 'print':
+        print_stat(args)
+
+    elif args.mode == 'validate':
+        validate(args)
 
     # elif args.mode == 'inference_new':
     #     inference_new(args)
