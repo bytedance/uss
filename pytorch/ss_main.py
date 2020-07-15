@@ -336,14 +336,15 @@ def print_stat(args):
     plt.plot(np.zeros(config.classes_num))
     plt.plot(values[indexes])
     plt.xticks(np.arange(config.classes_num), np.array(config.labels)[indexes], rotation='270', fontsize=2)
+    # plt.xticks(np.arange(config.classes_num), np.arange(config.classes_num), rotation='270', fontsize=2)
 
-    if True:
-        tmp_dict = stat_dict['test'][20]['sdr']
+    if False:
+        tmp_dict = stat_dict['test'][5]['sdr']
         values = []
         for key in range(config.classes_num):
             values.append(np.mean(tmp_dict[key]))
         values = np.array(values)
-        # indexes = np.argsort(values)[::-1]
+        indexes = np.argsort(values)[::-1]
         plt.plot(values[indexes])
 
     plt.tight_layout()
@@ -394,7 +395,7 @@ def validate(args):
     classes_num = config.classes_num
     segment_frames = config.segment_frames
     loss_func = get_loss_func(loss_type)
-    max_iteration = 1000
+    max_iteration = int(np.ceil(classes_num * 50 / batch_size))
 
     # neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
     # eval_max_iteration = 2  # Number of mini_batches for validation
@@ -422,13 +423,13 @@ def validate(args):
     dataset = SsAudioSetDataset(clip_samples=clip_samples, classes_num=classes_num)
 
     # Sampler
-    eval_bal_sampler = SsBalancedSampler(
+    eval_bal_sampler = SsEvaluateSampler(
         indexes_hdf5_path=eval_bal_indexes_hdf5_path, 
-        batch_size=batch_size)
+        batch_size=batch_size, max_iteration=max_iteration)
 
-    eval_test_sampler = SsBalancedSampler(
+    eval_test_sampler = SsEvaluateSampler(
         indexes_hdf5_path=eval_test_indexes_hdf5_path, 
-        batch_size=batch_size)
+        batch_size=batch_size, max_iteration=max_iteration)
 
     # Data loader
     eval_bal_loader = torch.utils.data.DataLoader(dataset=dataset, 
@@ -460,14 +461,11 @@ def validate(args):
     at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
-    evaluator = Evaluator(sed_mix=sed_mix, ss_model=ss_model, max_iteration=max_iteration)
+    evaluator = Evaluator(sed_mix=sed_mix, ss_model=ss_model)
 
     for iteration, batch_10s_dict in enumerate(eval_test_loader):
         if iteration % 10 == 0:
             print(iteration)
-
-        if iteration == max_iteration:
-            break
 
         audios_num = len(batch_10s_dict['audio_name'])
 
@@ -501,12 +499,88 @@ def validate(args):
 
         import crash
         asdf
-        K = 11
+        K = 0
         calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[K, :, 0], batch_sep_wavs[K, :, 0], scaling=True)
+        calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[K, :, 0], batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], scaling=True)
         librosa.output.write_wav('_zz.wav', batch_data_dict['source'].data.cpu().numpy()[K, :, 0], sr=32000)
         librosa.output.write_wav('_zz2.wav', batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], sr=32000)
         librosa.output.write_wav('_zz3.wav', batch_sep_wavs[K, :, 0], sr=32000)
+        print(config.labels[batch_data_dict['class_id'][K]])
+
+
+def inference_new(args):
+    # Arugments & parameters
+    workspace = args.workspace
+    at_checkpoint_path = args.at_checkpoint_path
+    data_type = args.data_type
+    model_type = args.model_type
+    loss_type = args.loss_type
+    balanced = args.balanced
+    augmentation = args.augmentation
+    batch_size = args.batch_size
+    iteration = args.iteration
+    device = torch.device('cuda') if args.cuda and torch.cuda.is_available() else torch.device('cpu')
+    filename = args.filename
+
+    num_workers = 8
+    sample_rate = config.sample_rate
+    clip_samples = config.clip_samples
+    classes_num = config.classes_num
+    segment_frames = config.segment_frames
+    loss_func = get_loss_func(loss_type)
+    max_iteration = int(np.ceil(classes_num * 50 / batch_size))
+
+    # Paths
+    checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
+        'data_type={}'.format(data_type), model_type, 
+        'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
+        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
+        '{}_iterations.pth'.format(iteration))
     
+    if 'cuda' in str(device):
+        logging.info('Using GPU.')
+        device = 'cuda'
+    else:
+        logging.info('Using CPU.')
+        device = 'cpu'
+
+    # Source separation model
+    SsModel = eval(model_type)
+    ss_model = SsModel(channels=1)
+    
+    # Resume training
+    checkpoint = torch.load(checkpoint_path)
+    ss_model.load_state_dict(checkpoint['model'])
+    
+    # Parallel
+    print('GPU number: {}'.format(torch.cuda.device_count()))
+    ss_model = torch.nn.DataParallel(ss_model)
+
+    if 'cuda' in str(device):
+        ss_model.to(device)
+    
+    sed_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_DecisionLevelMax_mAP=0.385.pth'
+    at_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_mAP=0.431.pth'
+    sed_model = SoundEventDetection(device=device, checkpoint_path=sed_checkpoint_path)
+    at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
+    sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
+
+    import crash
+    asdf
+
+    # Move data to device
+    for key in batch_data_dict.keys():
+        batch_data_dict[key] = move_data_to_device(batch_data_dict[key], device)
+
+    # Separate
+    with torch.no_grad():
+        ss_model.eval()
+
+        batch_output_dict = ss_model(
+            batch_data_dict['mixture'], 
+            batch_data_dict['hard_condition'])
+
+        batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()
 
 
 '''

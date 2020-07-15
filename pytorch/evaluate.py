@@ -12,27 +12,6 @@ from pytorch_utils import move_data_to_device
 import config
 
 
-# def expand_data(list_data_dict):
-
-#     classes_num = config.classes_num
-
-#     new_list_data_dict = []
-
-#     for data_dict in list_data_dict:
-#         for k in range(classes_num):
-#             if data_dict['target'][k] == 1:
-#                 new_list_data_dict.append(data_dict)
-
-'''
-def calculate_sdr(ref, est):
-    s_true = ref
-    s_artif = est - ref
-    sdr = 10. * (
-        np.log10(np.clip(np.mean(s_true ** 2), 1e-8, np.inf)) \
-        - np.log10(np.clip(np.mean(s_artif ** 2), 1e-8, np.inf)))
-    return sdr
-'''
-
 def calculate_sdr(ref, est, scaling=False):
     if scaling:
         alpha = np.dot(est, ref) / np.clip(np.dot(ref, ref), 1e-8, np.inf)
