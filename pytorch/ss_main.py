@@ -22,7 +22,7 @@ import config
 from losses import get_loss_func
 from data_generator import SsAudioSetDataset, SsBalancedSampler, SsEvaluateSampler, collect_fn 
 # from pytorch_utils import count_parameters, SedMix, debug_and_plot, move_data_to_device
-from pytorch_utils import count_parameters, SedMix, move_data_to_device
+from pytorch_utils import count_parameters, SedMix, move_data_to_device, id_to_one_hot
 from panns_inference import SoundEventDetection, AudioTagging
 from evaluate import Evaluator, average_dict, calculate_sdr
 
@@ -56,6 +56,7 @@ def train(args):
     loss_type = args.loss_type
     balanced = args.balanced
     augmentation = args.augmentation
+    mix_type = args.mix_type
     batch_size = args.batch_size
     learning_rate = args.learning_rate
     resume_iteration = args.resume_iteration
@@ -88,20 +89,22 @@ def train(args):
     checkpoints_dir = os.path.join(workspace, 'checkpoints', filename, 
         'data_type={}'.format(data_type), model_type, 
         'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
-        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size))
+        'augmentation={}'.format(augmentation), 'mix_type={}'.format(mix_type), 
+        'batch_size={}'.format(batch_size))
     create_folder(checkpoints_dir)
     
     statistics_path = os.path.join(workspace, 'statistics', filename, 
         'data_type={}'.format(data_type), model_type, 
         'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
-        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
-        'statistics.pkl')
+        'augmentation={}'.format(augmentation), 'mix_type={}'.format(mix_type), 
+        'batch_size={}'.format(batch_size), 'statistics.pkl')
     create_folder(os.path.dirname(statistics_path))
 
     logs_dir = os.path.join(workspace, 'logs', filename, 
         'data_type={}'.format(data_type), model_type, 
         'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
-        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size))
+        'augmentation={}'.format(augmentation), 'mix_type={}'.format(mix_type), 
+        'batch_size={}'.format(batch_size))
 
     create_logging(logs_dir, filemode='w')
     logging.info(args)
@@ -224,7 +227,7 @@ def train(args):
     t1 = time.time()
 
     for batch_10s_dict in train_loader:
-        
+
         
         # Evaluate 
         if (iteration % 10000 == 0 and iteration > resume_iteration) or (iteration == 0):
@@ -232,14 +235,6 @@ def train(args):
 
             bal_statistics = evaluator.evaluate(eval_bal_loader) 
             test_statistics = evaluator.evaluate(eval_test_loader)
-
-            '''
-            logging.info('sdr: {:.3f}, norm_sdr: {:.3f}'.format(
-                average_dict(bal_statistics['sdr']), average_dict(bal_statistics['norm_sdr'])))
-
-            logging.info('sdr: {:.3f}, norm_sdr: {:.3f}'.format(
-                average_dict(test_statistics['sdr']), average_dict(test_statistics['norm_sdr'])))
-            '''
 
             logging.info('si-sdr: {:.3f}'.format(average_dict(bal_statistics['sdr'])))
             logging.info('si-sdr: {:.3f}'.format(average_dict(test_statistics['sdr'])))
@@ -273,8 +268,10 @@ def train(args):
             logging.info('Model saved to {}'.format(checkpoint_path))
         
         # Get mixture and target data
-        
-        batch_data_dict = sed_mix.get_mix_data(batch_10s_dict)
+        if mix_type == '1':
+            batch_data_dict = sed_mix.get_mix_data(batch_10s_dict)
+        if mix_type == '2':
+            batch_data_dict = sed_mix.get_mix_data2(batch_10s_dict)
 
         if False:
             import crash
@@ -565,8 +562,10 @@ def inference_new(args):
     at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
-    import crash
-    asdf
+    #
+    (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
+    id1 = 100
+    batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': id_to_one_hot(id1, classes_num)[None, :]}
 
     # Move data to device
     for key in batch_data_dict.keys():
@@ -581,6 +580,14 @@ def inference_new(args):
             batch_data_dict['hard_condition'])
 
         batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()
+
+    
+    K = 0
+    librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], sr=32000)
+    librosa.output.write_wav('_zz2.wav', batch_sep_wavs[K, :, 0], sr=32000)
+    import crash
+    asdf
+        
 
 
 '''
@@ -702,6 +709,7 @@ if __name__ == '__main__':
     parser_train.add_argument('--loss_type', type=str, required=True)
     parser_train.add_argument('--balanced', type=str, default='balanced', choices=['balanced'])
     parser_train.add_argument('--augmentation', type=str, default='mixup', choices=['none'])
+    parser_train.add_argument('--mix_type', type=str, required=True)
     parser_train.add_argument('--batch_size', type=int, required=True)
     parser_train.add_argument('--early_stop', type=int, required=True)
     parser_train.add_argument('--learning_rate', type=float, required=True)
@@ -721,20 +729,19 @@ if __name__ == '__main__':
     parser_train.add_argument('--batch_size', type=int, required=True)
     parser_train.add_argument('--iteration', type=int, required=True)
     parser_train.add_argument('--cuda', action='store_true', default=False)
-    
-    # parser_inference_new = subparsers.add_parser('inference_new')
-    # parser_inference_new.add_argument('--workspace', type=str, required=True)
-    # parser_inference_new.add_argument('--at_checkpoint_path', type=str, required=True)
-    # parser_inference_new.add_argument('--data_type', type=str, required=True)
-    # parser_inference_new.add_argument('--model_type', type=str, required=True)
-    # parser_inference_new.add_argument('--condition_type', type=str, choices=['soft', 'soft_hard'], required=True)
-    # parser_inference_new.add_argument('--wiener_filter', action='store_true', default=False)
-    # parser_inference_new.add_argument('--loss_type', type=str, required=True)
-    # parser_inference_new.add_argument('--batch_size', type=int, required=True)
-    # parser_inference_new.add_argument('--iteration', type=int, required=True)
-    # parser_inference_new.add_argument('--cuda', action='store_true', default=False)
-    # parser_inference_new.add_argument('--new_audio_path', type=str, default='')
 
+    parser_inference_new = subparsers.add_parser('inference_new')
+    parser_inference_new.add_argument('--workspace', type=str, required=True)
+    parser_inference_new.add_argument('--at_checkpoint_path', type=str, required=True)
+    parser_inference_new.add_argument('--data_type', type=str, required=True)
+    parser_inference_new.add_argument('--model_type', type=str, required=True)
+    parser_inference_new.add_argument('--loss_type', type=str, required=True)
+    parser_inference_new.add_argument('--balanced', type=str, default='balanced', choices=['balanced'])
+    parser_inference_new.add_argument('--augmentation', type=str, default='mixup', choices=['none'])
+    parser_inference_new.add_argument('--batch_size', type=int, required=True)
+    parser_inference_new.add_argument('--iteration', type=int, required=True)
+    parser_inference_new.add_argument('--cuda', action='store_true', default=False)
+    
     args = parser.parse_args()
     args.filename = get_filename(__file__)
 
@@ -747,8 +754,8 @@ if __name__ == '__main__':
     elif args.mode == 'validate':
         validate(args)
 
-    # elif args.mode == 'inference_new':
-    #     inference_new(args)
+    elif args.mode == 'inference_new':
+        inference_new(args)
 
     else:
         raise Exception('Error argument!')

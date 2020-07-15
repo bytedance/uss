@@ -181,6 +181,103 @@ class SedMix(object):
 
         return output_dict
 
+    def get_mix_data2(self, data_dict): 
+
+        framewise_output = self.sed_model.inference(data_dict['waveform'])
+        (audios_num, total_frames_num, classes_num) = framewise_output.shape
+
+        seg_waveforms = []
+        for n in range(audios_num):
+            smoothed_framewise_output = np.convolve(
+                framewise_output[n, :, data_dict['class_id'][n]], np.ones(self.segment_frames), mode='same')
+            anchor_index = np.argmax(smoothed_framewise_output)
+
+            (bgn_sample, end_sample) = self.get_segment_bgn_end_samples(
+                anchor_index, self.segment_frames)
+
+            seg_waveforms.append(data_dict['waveform'][n, bgn_sample : end_sample])
+
+        seg_waveforms = np.array(seg_waveforms)
+        seg_predictions, _ = self.at_model.inference(seg_waveforms)
+        
+        mixtures = []
+        sources = []
+        soft_conditions = []
+        hard_conditions = []
+        class_ids = []
+        for n in range(0, audios_num, 2):
+            ratio = (calculate_average_energy(seg_waveforms[n]) / max(1e-8, calculate_average_energy(seg_waveforms[n + 1]))) ** 0.5
+            ratio = np.clip(ratio, 0.02, 50)
+            seg_waveforms[n + 1] *= ratio
+            mixture = seg_waveforms[n] + seg_waveforms[n + 1]
+
+            if False:
+                import crash
+                asdf 
+                K = 3
+                config.ix_to_lb[data_dict['class_id'][K]]
+                data_dict['target'][K]
+                [config.ix_to_lb[idx] for idx in np.argsort(seg_predictions[K])[::-1][0:10]]
+                librosa.output.write_wav('_zz.wav', data_dict['waveform'][K], sr=32000)
+                librosa.output.write_wav('_zz2.wav', seg_waveforms[K], sr=32000)
+                seg_predictions[K, data_dict['class_id'][K]]
+                np.max(framewise_output[K, :, data_dict['class_id'][K]])
+
+            # Mixutres
+            mixtures.append(mixture)
+            mixtures.append(mixture)
+            _rnd = self.random_state.randint(2)
+            m = n + _rnd
+            m2 = n + (1 - _rnd)
+            mixtures.append(seg_waveforms[m])
+            mixtures.append(seg_waveforms[m])
+
+            # Targets
+            sources.append(seg_waveforms[n])
+            sources.append(seg_waveforms[n + 1])
+            sources.append(seg_waveforms[m])
+            sources.append(np.zeros_like(seg_waveforms[m]))
+            
+            # Soft conditions
+            # soft_conditions.append(seg_predictions[n])
+            # soft_conditions.append(seg_predictions[n + 1])
+            # soft_conditions.append(seg_predictions[m])
+
+            # f(x1, c2) -> 0. Make sure c2 and the prediction of x1 is exclusive. 
+            # for k in range(classes_num):
+            #     if seg_predictions[m, k] >= 0.02:
+            #         seg_predictions[m2, k] = 0.
+            # soft_conditions.append(seg_predictions[m2])
+            
+            # Hard conditions
+            hard_conditions.append(id_to_one_hot(data_dict['class_id'][n], classes_num))
+            hard_conditions.append(id_to_one_hot(data_dict['class_id'][n + 1], classes_num))
+            hard_conditions.append(id_to_one_hot(data_dict['class_id'][m], classes_num))
+            hard_conditions.append(id_to_one_hot(data_dict['class_id'][m2], classes_num))
+
+            class_ids.append(data_dict['class_id'][n])
+            class_ids.append(data_dict['class_id'][n + 1])
+            class_ids.append(data_dict['class_id'][m])
+            class_ids.append(data_dict['class_id'][m2])
+                
+
+        # indexes = np.arange(len(mixtures))  # (0, 1, ..., batch_size)
+        # if with_identity_zero:
+        #     indexes = np.arange(len(mixtures))  # (0, 1, ..., batch_size)
+        # else:
+        #     N = len(mixtures)
+        #     indexes = np.arange(N).reshape((N // 4, 4))[:, 0 : 2].flatten()
+        #     """(0, 1, 4, 5, 8, 9, ..., batch_size * 2 - 4, batch_size * 2 - 3)"""
+
+        output_dict = {
+            'class_id': np.array(class_ids),  # (batch_size,)
+            'mixture': np.array(mixtures)[:, :, None], # (batch_size,) | (batch_size * 2,)
+            'source': np.array(sources)[:, :, None],   # (batch_size,) | (batch_size * 2,)
+            'hard_condition': np.array(hard_conditions),   # (batch_size,) | (batch_size * 2,)
+            }
+
+        return output_dict
+
 
 def debug_and_plot(ss_model, batch_10s_dict, batch_data_dict):
     sample_rate = config.sample_rate
