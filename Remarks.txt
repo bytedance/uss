@@ -1,0 +1,3 @@
+mix_type=1: hard_condition
+mix_type=2: hard_condition with identity and silence
+mix_type=3: soft_condition with identity and silence

@@ -270,8 +270,10 @@ def train(args):
         # Get mixture and target data
         if mix_type == '1':
             batch_data_dict = sed_mix.get_mix_data(batch_10s_dict)
-        if mix_type == '2':
+        elif mix_type == '2':
             batch_data_dict = sed_mix.get_mix_data2(batch_10s_dict)
+        elif mix_type == '3':
+            batch_data_dict = sed_mix.get_mix_data3(batch_10s_dict)
 
         if False:
             import crash
@@ -291,9 +293,10 @@ def train(args):
 
         # Forward
         ss_model.train()
-        batch_output_dict = ss_model(
-            batch_data_dict['mixture'], 
-            batch_data_dict['hard_condition'])
+        if mix_type in ['1', '2']:
+            batch_output_dict = ss_model(batch_data_dict['mixture'], batch_data_dict['hard_condition'])
+        elif mix_type in ['3']:
+            batch_output_dict = ss_model(batch_data_dict['mixture'], batch_data_dict['soft_condition'])
 
         loss = loss_func(batch_output_dict['wav'], batch_data_dict['source'])
         print(loss)
@@ -404,12 +407,16 @@ def validate(args):
     eval_test_indexes_hdf5_path = os.path.join(workspace, 'hdf5s', 'indexes', 
         'eval.h5')
 
+    '''
     checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
         'data_type={}'.format(data_type), model_type, 
         'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
         'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
         '{}_iterations.pth'.format(iteration))
-    
+    '''
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=2/batch_size=12/60000_iterations.pth'
+
+
     if 'cuda' in str(device):
         logging.info('Using GPU.')
         device = 'cuda'
@@ -477,6 +484,9 @@ def validate(args):
         with torch.no_grad():
             ss_model.eval()
 
+            batch_data_dict['hard_condition'][:, :] = 0
+            batch_data_dict['hard_condition'][:, 0] = 1
+
             batch_output_dict = ss_model(
                 batch_data_dict['mixture'], 
                 batch_data_dict['hard_condition'])
@@ -496,7 +506,7 @@ def validate(args):
 
         import crash
         asdf
-        K = 0
+        K = 6
         calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[K, :, 0], batch_sep_wavs[K, :, 0], scaling=True)
         calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[K, :, 0], batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], scaling=True)
         librosa.output.write_wav('_zz.wav', batch_data_dict['source'].data.cpu().numpy()[K, :, 0], sr=32000)
@@ -528,11 +538,13 @@ def inference_new(args):
     max_iteration = int(np.ceil(classes_num * 50 / batch_size))
 
     # Paths
-    checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
-        'data_type={}'.format(data_type), model_type, 
-        'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
-        'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
-        '{}_iterations.pth'.format(iteration))
+    # checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
+    #     'data_type={}'.format(data_type), model_type, 
+    #     'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
+    #     'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
+    #     '{}_iterations.pth'.format(iteration))
+
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=2/batch_size=12/60000_iterations.pth'
     
     if 'cuda' in str(device):
         logging.info('Using GPU.')
@@ -585,8 +597,6 @@ def inference_new(args):
     K = 0
     librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], sr=32000)
     librosa.output.write_wav('_zz2.wav', batch_sep_wavs[K, :, 0], sr=32000)
-    import crash
-    asdf
         
 
 
@@ -741,7 +751,7 @@ if __name__ == '__main__':
     parser_inference_new.add_argument('--batch_size', type=int, required=True)
     parser_inference_new.add_argument('--iteration', type=int, required=True)
     parser_inference_new.add_argument('--cuda', action='store_true', default=False)
-    
+     
     args = parser.parse_args()
     args.filename = get_filename(__file__)
 
