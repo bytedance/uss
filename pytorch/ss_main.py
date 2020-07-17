@@ -338,7 +338,7 @@ def print_stat(args):
     plt.xticks(np.arange(config.classes_num), np.array(config.labels)[indexes], rotation='270', fontsize=2)
     # plt.xticks(np.arange(config.classes_num), np.arange(config.classes_num), rotation='270', fontsize=2)
 
-    if False:
+    if True:
         tmp_dict = stat_dict['test'][5]['sdr']
         values = []
         for key in range(config.classes_num):
@@ -414,7 +414,8 @@ def validate(args):
         'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
         '{}_iterations.pth'.format(iteration))
     '''
-    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=2/batch_size=12/60000_iterations.pth'
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/batch_size=12/500000_iterations.pth'
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=2/batch_size=12/160000_iterations.pth'
 
 
     if 'cuda' in str(device):
@@ -484,8 +485,8 @@ def validate(args):
         with torch.no_grad():
             ss_model.eval()
 
-            batch_data_dict['hard_condition'][:, :] = 0
-            batch_data_dict['hard_condition'][:, 0] = 1
+            # batch_data_dict['hard_condition'][:, :] = 0
+            # batch_data_dict['hard_condition'][:, 0] = 1
 
             batch_output_dict = ss_model(
                 batch_data_dict['mixture'], 
@@ -506,7 +507,7 @@ def validate(args):
 
         import crash
         asdf
-        K = 6
+        K = 0
         calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[K, :, 0], batch_sep_wavs[K, :, 0], scaling=True)
         calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[K, :, 0], batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], scaling=True)
         librosa.output.write_wav('_zz.wav', batch_data_dict['source'].data.cpu().numpy()[K, :, 0], sr=32000)
@@ -543,9 +544,10 @@ def inference_new(args):
     #     'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
     #     'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
     #     '{}_iterations.pth'.format(iteration))
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/batch_size=12/500000_iterations.pth'
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=2/batch_size=12/160000_iterations.pth'
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=3/batch_size=8/100000_iterations.pth'
 
-    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=2/batch_size=12/60000_iterations.pth'
-    
     if 'cuda' in str(device):
         logging.info('Using GPU.')
         device = 'cuda'
@@ -576,7 +578,7 @@ def inference_new(args):
 
     #
     (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
-    id1 = 100
+    id1 = 30
     batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': id_to_one_hot(id1, classes_num)[None, :]}
 
     # Move data to device
@@ -597,6 +599,8 @@ def inference_new(args):
     K = 0
     librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], sr=32000)
     librosa.output.write_wav('_zz2.wav', batch_sep_wavs[K, :, 0], sr=32000)
+    import crash
+    asdf
         
 
 
