@@ -1,3 +1,5 @@
 mix_type=1: hard_condition
 mix_type=2: hard_condition with identity and silence
 mix_type=3: soft_condition with identity and silence
+mix_type=4: hard_condition, multiple pred ids, with identity and silence
+mix_type=4b: hard_condition, multiple pred ids, remove overlap condition, with identity and silence
