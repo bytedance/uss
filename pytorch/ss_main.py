@@ -199,8 +199,11 @@ def train(args):
     # Statistics
     statistics_container = StatisticsContainer(statistics_path)
     
-    sed_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_DecisionLevelMax_mAP=0.385.pth'
-    at_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_mAP=0.431.pth'
+    # sed_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_DecisionLevelMax_mAP=0.385.pth'
+    # at_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_mAP=0.431.pth'
+    sed_checkpoint_path = '/root/released_models/sed/Cnn14_DecisionLevelMax_mAP=0.385.pth'
+    at_checkpoint_path = '/root/released_models/sed/Cnn14_mAP=0.431.pth'
+
     sed_model = SoundEventDetection(device=device, checkpoint_path=sed_checkpoint_path)
     at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
@@ -228,7 +231,7 @@ def train(args):
 
     for batch_10s_dict in train_loader:
 
-        '''
+        
         # Evaluate  
         if (iteration % 10000 == 0 and iteration > resume_iteration) or (iteration == 0):
             train_fin_time = time.time()
@@ -253,7 +256,7 @@ def train(args):
             logging.info('------------------------------------')
 
             train_bgn_time = time.time()
-        '''
+        
         # Save model
         if iteration % 20000 == 0:
             checkpoint = {

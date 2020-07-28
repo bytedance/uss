@@ -60,7 +60,7 @@ class SedMix(object):
         self.random_state = np.random.RandomState(1234)
 
         import pickle
-        self.opt_thres = pickle.load(open('/home/tiger/my_code_2019.12-/python/audioset_tagging/opt_thres.pkl', 'rb'))
+        self.opt_thres = pickle.load(open('opt_thres.pkl', 'rb'))
 
     '''
     def get_sample_bgn_fin_indexes(self, seg_index, neighbour_segs, total_segs_num, seg_hop_sec):
