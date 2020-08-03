@@ -231,7 +231,6 @@ def train(args):
 
     for batch_10s_dict in train_loader:
 
-        
         # Evaluate  
         if (iteration % 10000 == 0 and iteration > resume_iteration) or (iteration == 0):
             train_fin_time = time.time()
@@ -281,47 +280,50 @@ def train(args):
             batch_data_dict = sed_mix.get_mix_data4(batch_10s_dict)
         elif mix_type == '4b':
             batch_data_dict = sed_mix.get_mix_data4b(batch_10s_dict)
+        elif mix_type == '5':
+            batch_data_dict = sed_mix.get_mix_data5(batch_10s_dict)
 
-        if False:
-            import crash
-            asdf
-            K = 3
-            config.ix_to_lb[batch_data_dict['class_id'][K]]
-            batch_data_dict['hard_condition'][K]
-            librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'][K], sr=32000)
-            librosa.output.write_wav('_zz2.wav', batch_data_dict['source'][K], sr=32000)
-        
-        if False:
-            debug_and_plot(ss_model, batch_10s_dict, batch_data_dict)
+        if len(batch_data_dict['class_id']) > 0:
+            if False:
+                import crash
+                asdf
+                K = 3
+                config.ix_to_lb[batch_data_dict['class_id'][K]]
+                batch_data_dict['hard_condition'][K]
+                librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'][K], sr=32000)
+                librosa.output.write_wav('_zz2.wav', batch_data_dict['source'][K], sr=32000)
             
-        # Move data to device
-        for key in batch_data_dict.keys():
-            batch_data_dict[key] = move_data_to_device(batch_data_dict[key], device)
+            if False:
+                debug_and_plot(ss_model, batch_10s_dict, batch_data_dict)
+                
+            # Move data to device
+            for key in batch_data_dict.keys():
+                batch_data_dict[key] = move_data_to_device(batch_data_dict[key], device)
 
-        # Forward
-        ss_model.train()
-        if mix_type in ['1', '2', '4', '4b']:
-            batch_output_dict = ss_model(batch_data_dict['mixture'], batch_data_dict['hard_condition'])
-        elif mix_type in ['3']:
-            batch_output_dict = ss_model(batch_data_dict['mixture'], batch_data_dict['soft_condition'])
+            # Forward
+            ss_model.train()
+            if mix_type in ['1', '2', '4', '4b']:
+                batch_output_dict = ss_model(batch_data_dict['mixture'], batch_data_dict['hard_condition'])
+            elif mix_type in ['3', '5']:
+                batch_output_dict = ss_model(batch_data_dict['mixture'], batch_data_dict['soft_condition'])
 
-        loss = loss_func(batch_output_dict['wav'], batch_data_dict['source'])
-        print(loss)
+            loss = loss_func(batch_output_dict['wav'], batch_data_dict['source'])
+            print(loss)
 
-        # Backward
-        loss.backward()
-        optimizer.step()
-        optimizer.zero_grad()
-    
-        if iteration % 10 == 0:
-            print(iteration, 'time: {:.3f} s'.format(time.time() - t1))
-            t1 = time.time()
+            # Backward
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
         
-        iteration += 1
-        
-        # Stop learning
-        if iteration == early_stop:
-            break
+            if iteration % 10 == 0:
+                print(iteration, 'time: {:.3f} s'.format(time.time() - t1))
+                t1 = time.time()
+            
+            iteration += 1
+            
+            # Stop learning
+            if iteration == early_stop:
+                break
 
 
 def print_stat(args):
@@ -552,9 +554,9 @@ def inference_new(args):
     #     'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
     #     '{}_iterations.pth'.format(iteration))
     # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/batch_size=12/1000000_iterations.pth'
-    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=2/batch_size=12/500000_iterations.pth'
-    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=3/batch_size=8/500000_iterations.pth'
-    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4/batch_size=8/160000_iterations.pth'
+    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=3/batch_size=12/200000_iterations.pth'
+    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4/batch_size=12/200000_iterations.pth'
+    checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4b/batch_size=12/200000_iterations.pth'
 
     if 'cuda' in str(device):
         logging.info('Using GPU.')
@@ -586,7 +588,8 @@ def inference_new(args):
 
     #
     (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
-    id1 = 67
+    # id1 = 67
+    id1 = 0
     batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': id_to_one_hot(id1, classes_num)[None, :]}
 
     # Move data to device
