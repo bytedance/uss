@@ -257,7 +257,7 @@ def train(args):
             train_bgn_time = time.time()
         
         # Save model
-        if iteration % 20000 == 0:
+        if iteration % 50000 == 0:
             checkpoint = {
                 'iteration': iteration, 
                 'model': ss_model.module.state_dict(), 
@@ -620,113 +620,6 @@ def inference_new(args):
     # import crash
     # asdf
         
-
-
-'''
-def inference_new(args):
-    
-    # Arugments & parameters
-    workspace = args.workspace
-    at_checkpoint_path = args.at_checkpoint_path
-    data_type = args.data_type
-    model_type = args.model_type
-    condition_type = args.condition_type
-    wiener_filter = args.wiener_filter
-    loss_type = args.loss_type
-    batch_size = args.batch_size
-    iteration = args.iteration
-    device = torch.device('cuda') if args.cuda and torch.cuda.is_available() else torch.device('cpu')
-    filename = args.filename
-    new_audio_path = args.new_audio_path
-
-    num_workers = 8
-    sample_rate = config.sample_rate
-    classes_num = config.classes_num
-    neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
-    
-    # Paths
-    ss_checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
-        'data_type={}'.format(data_type), model_type, 
-        'condition_type={}'.format(condition_type), 'wiener_filter={}'.format(wiener_filter), 
-        'loss_type={}'.format(loss_type), 'batch_size={}'.format(batch_size), 
-        '{}_iterations.pth'.format(iteration))
-
-    separated_wavs_dir = '_separated_wavs'
-    create_folder(separated_wavs_dir)
-
-    if 'cuda' in str(device):
-        logging.info('Using GPU.')
-        device = 'cuda'
-    else:
-        logging.info('Using CPU.')
-        device = 'cpu'
-
-    # Load pretrained SED model. Do not change these parameters as they are 
-    # part of the pretrained SED model.
-    sed_model = Cnn13_DecisionLevelMax(sample_rate=32000, window_size=1024, 
-        hop_size=320, mel_bins=64, fmin=50, fmax=14000, classes_num=527)
-
-    logging.info('Loading checkpoint {}'.format(at_checkpoint_path))
-    checkpoint = torch.load(at_checkpoint_path)
-    sed_model.load_state_dict(checkpoint['model'])
-    sed_model = torch.nn.DataParallel(sed_model)
-
-    if 'cuda' in str(device):
-        sed_model.to(device)
-
-    # Load source separation model
-    SsModel = eval(model_type)
-    ss_model = SsModel(classes_num, condition_type, wiener_filter)
-    logging.info('Loading source separation checkpoint {}'.format(at_checkpoint_path))
-    checkpoint = torch.load(ss_checkpoint_path)
-    ss_model.load_state_dict(checkpoint['model'])
-    
-    # Parallel
-    print('GPU number: {}'.format(torch.cuda.device_count()))
-    ss_model = torch.nn.DataParallel(ss_model)
-
-    if 'cuda' in str(device):
-        ss_model.to(device)
-    
-    if new_audio_path:
-        (waveform, _) = librosa.core.load(new_audio_path, sr=sample_rate, mono=True)
-    else:
-        waveform = np.zeros(sample_rate * 10)
-    
-    out_mixture_path = os.path.join(separated_wavs_dir, 'mixture.wav')
-    librosa.output.write_wav(out_mixture_path, waveform, sr=sample_rate)
-    print('Write mixture to {}'.format(out_mixture_path))
-
-    waveform = move_data_to_device(waveform, device)[None, :]
-    
-    with torch.no_grad():
-        sed_model.eval()
-        output_dict = sed_model(waveform)
-        at_prediction = output_dict['clipwise_output'].data.cpu().numpy()[0]
-        
-    sorted_indexes = np.argsort(at_prediction)[::-1][0 : 20]
-    np.array(config.labels)[sorted_indexes]
-    at_prediction[sorted_indexes]
-
-    for index in sorted_indexes:
-
-        condition = np.zeros(classes_num)
-        condition[index] = 1
-        condition = move_data_to_device(condition, device)[None, :]
- 
-        with torch.no_grad():
-            ss_model.eval()
-            separated_wav = ss_model.module.wavin_to_wavout(
-                waveform, condition, condition, 
-                length=waveform.shape[-1]).data.cpu().numpy()[0]
-            
-            separated_wav[np.isnan(separated_wav)] = 0
-
-            sep_audio_path = os.path.join(separated_wavs_dir, '{}_{}.wav'.format(index, config.labels[index]))
-            librosa.output.write_wav(sep_audio_path, separated_wav, sr=sample_rate)
-            print('{} {}, {:.3f}. Write separated wav to {}'.format(
-                index, config.labels[index], at_prediction[index], sep_audio_path))
-'''
 
 if __name__ == '__main__':
 
