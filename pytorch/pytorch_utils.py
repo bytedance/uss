@@ -640,6 +640,7 @@ class SedMix(object):
         soft_conditions = []
         hard_conditions = []
         class_ids = []
+
         for i in range(0, len(indexes), 2):
             n1 = indexes[i]
             n2 = indexes[i + 1]
@@ -703,15 +704,18 @@ class SedMix(object):
             class_ids.append(data_dict['class_id'][m1])
             class_ids.append(data_dict['class_id'][m2])
                 
-        output_dict = {
-            'class_id': np.array(class_ids),  # (batch_size,)
-            'mixture': np.array(mixtures)[:, :, None], # (batch_size,) | (batch_size * 2,)
-            'source': np.array(sources)[:, :, None],   # (batch_size,) | (batch_size * 2,)
-            'hard_condition': np.array(hard_conditions),   # (batch_size,) | (batch_size * 2,)
-            'soft_condition': np.array(soft_conditions)
-            }
+        if len(mixtures) == 0:
+            return None
 
-        return output_dict
+        else:
+            output_dict = {
+                'class_id': np.array(class_ids),  # (batch_size,)
+                'mixture': np.array(mixtures)[:, :, None], # (batch_size,) | (batch_size * 2,)
+                'source': np.array(sources)[:, :, None],   # (batch_size,) | (batch_size * 2,)
+                'hard_condition': np.array(hard_conditions),   # (batch_size,) | (batch_size * 2,)
+                'soft_condition': np.array(soft_conditions)
+                }
+            return output_dict
 
 
 def debug_and_plot(ss_model, batch_10s_dict, batch_data_dict):
