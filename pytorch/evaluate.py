@@ -28,6 +28,14 @@ def calculate_sdr(ref, est, scaling=False):
     return sdr
 
 
+def calculate_silence_sdr(mixture, est):
+    sdr = 10. * (
+        np.log10(np.clip(np.mean(mixture ** 2), 1e-8, np.inf)) \
+        - np.log10(np.clip(np.mean(est ** 2), 1e-8, np.inf)))
+    return sdr
+
+
+'''
 class Evaluator(object):
     def __init__(self, sed_mix, ss_model):
         # self.generator = generator
@@ -52,8 +60,13 @@ class Evaluator(object):
 
             audios_num = len(batch_10s_dict['audio_name'])
 
+            import crash
+            asdf
+
             # Get mixture and target data
             batch_data_dict = self.sed_mix.get_mix_data(batch_10s_dict)
+
+
 
             # Move data to device
             for key in batch_data_dict.keys():
@@ -89,6 +102,113 @@ class Evaluator(object):
         # result_dict = {'sdr': sdr_dict, 'norm_sdr': norm_sdr_dict}
         result_dict = {'sdr': sdr_dict}
         return result_dict
+'''
+
+class Evaluator(object):
+    def __init__(self, sed_mix, ss_model, condition_type):
+        self.sed_mix = sed_mix
+        self.ss_model = ss_model
+        self.condition_type = condition_type
+        self.device = next(ss_model.parameters()).device
+        self.classes_num = config.classes_num
+         
+    def evaluate(self, generator):
+
+        mixture_sdr_dict = {k: [] for k in range(self.classes_num)}
+        clean_sdr_dict = {k: [] for k in range(self.classes_num)}
+        silence_sdr_dict = {k: [] for k in range(self.classes_num)}
+        # norm_sdr_dict = {k: [] for k in range(self.classes_num)}
+ 
+        for iteration, batch_10s_dict in enumerate(generator):
+            if iteration % 10 == 0:
+                print(iteration)
+
+            audios_num = len(batch_10s_dict['audio_name'])
+
+            # ------ Mixture eval ------
+            # Get mixture and target data
+            batch_data_dict = self.sed_mix.get_eval(batch_10s_dict, data_type='mixture')
+
+            if batch_data_dict:
+                # Move data to device
+                for key in batch_data_dict.keys():
+                    batch_data_dict[key] = move_data_to_device(batch_data_dict[key], self.device)
+
+                # Separate
+                with torch.no_grad():
+                    self.ss_model.eval()
+
+                    batch_output_dict = self.ss_model(
+                        batch_data_dict['mixture'], 
+                        batch_data_dict[self.condition_type])
+
+                    batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()            
+
+                for n in range(0, len(batch_data_dict['mixture'])):
+                    sdr = calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[n, :, 0], batch_sep_wavs[n, :, 0], scaling=True)
+                    class_id = batch_data_dict['class_id'].data.cpu().numpy()[n]
+                    mixture_sdr_dict[class_id].append(sdr)
+                
+            # ------ Clean eval ------
+            # Get mixture and target data
+            batch_data_dict = self.sed_mix.get_eval(batch_10s_dict, data_type='clean')
+
+            if batch_data_dict:
+                # Move data to device
+                for key in batch_data_dict.keys():
+                    batch_data_dict[key] = move_data_to_device(batch_data_dict[key], self.device)
+
+                # Separate
+                with torch.no_grad():
+                    self.ss_model.eval()
+
+                    batch_output_dict = self.ss_model(
+                        batch_data_dict['mixture'], 
+                        batch_data_dict[self.condition_type])
+
+                    batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()            
+
+                for n in range(0, len(batch_data_dict['mixture'])):
+                    sdr = calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[n, :, 0], batch_sep_wavs[n, :, 0], scaling=True)
+                    class_id = batch_data_dict['class_id'].data.cpu().numpy()[n]
+                    clean_sdr_dict[class_id].append(sdr)
+
+            if batch_data_dict:
+                # ------ Silence eval ------
+                # Get mixture and target data
+                batch_data_dict = self.sed_mix.get_eval(batch_10s_dict, data_type='silence')
+
+                # Move data to device
+                for key in batch_data_dict.keys():
+                    batch_data_dict[key] = move_data_to_device(batch_data_dict[key], self.device)
+
+                # Separate
+                with torch.no_grad():
+                    self.ss_model.eval()
+
+                    batch_output_dict = self.ss_model(
+                        batch_data_dict['mixture'], 
+                        batch_data_dict[self.condition_type])
+
+                    batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()            
+
+                for n in range(0, len(batch_data_dict['mixture'])):
+                    sdr = calculate_silence_sdr(batch_data_dict['mixture'].data.cpu().numpy()[n, :, 0], batch_sep_wavs[n, :, 0])
+                    class_id = batch_data_dict['class_id'].data.cpu().numpy()[n]
+                    silence_sdr_dict[class_id].append(sdr)
+
+            # import crash
+            # asdf
+            # librosa.output.write_wav('_zz.wav', batch_data_dict['source'].data.cpu().numpy()[n, :, 0], sr=32000)
+            # librosa.output.write_wav('_zz2.wav', batch_data_dict['mixture'].data.cpu().numpy()[n, :, 0], sr=32000)
+            # librosa.output.write_wav('_zz3.wav', batch_sep_wavs[n, :, 0], sr=32000)
+            # calculate_sdr(batch_data_dict['source'].data.cpu().numpy()[n, :, 0], batch_data_dict['mixture'].data.cpu().numpy()[n, :, 0])
+
+
+        # result_dict = {'sdr': sdr_dict, 'norm_sdr': norm_sdr_dict}
+        result_dict = {'mixture_sdr': mixture_sdr_dict, 'clean_sdr': clean_sdr_dict, 'silence_sdr': silence_sdr_dict}
+        return result_dict
+
 
 def average_dict(metric_dict):
     values = []
