@@ -16,4 +16,6 @@ CUDA_VISIBLE_DEVICES=0 python3 pytorch/ss_main.py inference_new --workspace=$WOR
 python3 pytorch/ss_main.py print
 
 ###
-CUDA_VISIBLE_DEVICES=4 python3 pytorch/ss_main_16k.py train --workspace=$WORKSPACE --at_checkpoint_path=$AT_CHECKPOINT_PATH --data_type='balanced_train' --model_type='UNet_16k' --loss_type='mae' --balanced='balanced' --augmentation='none' --mix_type='5' --batch_size=12 --learning_rate=1e-3 --resume_iteration=0 --early_stop=1000001 --cuda
+CUDA_VISIBLE_DEVICES=5 python3 pytorch/ss_main_16k.py train --workspace=$WORKSPACE --at_checkpoint_path=$AT_CHECKPOINT_PATH --data_type='balanced_train' --model_type='UNet_16k' --loss_type='mae' --balanced='balanced' --augmentation='none' --mix_type='5' --batch_size=12 --learning_rate=1e-3 --resume_iteration=0 --early_stop=1000001 --cuda
+
+CUDA_VISIBLE_DEVICES=0 python3 pytorch/ss_main_16k.py inference_new --workspace=$WORKSPACE --at_checkpoint_path=$AT_CHECKPOINT_PATH --data_type='balanced_train' --model_type='UNet_16k' --loss_type='mae' --balanced='balanced' --augmentation='none' --batch_size=2 --iteration=100000 --cuda

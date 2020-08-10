@@ -72,6 +72,14 @@ def train(args):
     loss_func = get_loss_func(loss_type)
     # max_iteration = 10
     max_iteration = int(np.ceil(classes_num * 50 / batch_size))
+    # max_iteration = int(np.ceil(classes_num * 3 / batch_size))
+# 
+    if mix_type in ['4b']:
+        condition_type = 'hard_condition'
+    elif mix_type in ['3', '5', '5b']:
+        condition_type = 'soft_condition'
+    else:
+        raise Exception('Incorrect mix_type!')
 
     # neighbour_segs = 2  # segments used for training has length of (neighbour_segs * 2 + 1) * 0.32 ~= 1.6 s
     # eval_max_iteration = 2  # Number of mini_batches for validation
@@ -208,7 +216,7 @@ def train(args):
     at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
-    evaluator = Evaluator(sed_mix=sed_mix, ss_model=ss_model)
+    evaluator = Evaluator(sed_mix=sed_mix, ss_model=ss_model, condition_type=condition_type)
 
     '''
     # Evaluator
@@ -232,14 +240,21 @@ def train(args):
     for batch_10s_dict in train_loader:
         
         # Evaluate  
-        if (iteration % 10000 == 0 and iteration > resume_iteration) or (iteration == 0):
+        if (iteration % 20000 == 0 and iteration > resume_iteration) or (iteration == 0):
             train_fin_time = time.time()
 
             bal_statistics = evaluator.evaluate(eval_bal_loader) 
             test_statistics = evaluator.evaluate(eval_test_loader)
 
-            logging.info('si-sdr: {:.3f}'.format(average_dict(bal_statistics['sdr'])))
-            logging.info('si-sdr: {:.3f}'.format(average_dict(test_statistics['sdr'])))
+            logging.info('mixture si-sdr: {:.3f}, clean si-sdr: {:.3f}, silence sdr: {:.3f}'.format(
+                average_dict(bal_statistics['mixture_sdr']), 
+                average_dict(bal_statistics['clean_sdr']), 
+                average_dict(bal_statistics['silence_sdr'])))
+
+            logging.info('mixture si-sdr: {:.3f}, clean si-sdr: {:.3f}, silence sdr: {:.3f}'.format(
+                average_dict(test_statistics['mixture_sdr']), 
+                average_dict(test_statistics['clean_sdr']), 
+                average_dict(test_statistics['silence_sdr'])))
 
             statistics_container.append(iteration, bal_statistics, data_type='bal')
             statistics_container.append(iteration, test_statistics, data_type='test')
@@ -282,6 +297,8 @@ def train(args):
             batch_data_dict = sed_mix.get_mix_data4b(batch_10s_dict)
         elif mix_type == '5':
             batch_data_dict = sed_mix.get_mix_data5(batch_10s_dict)
+        elif mix_type == '5b':
+            batch_data_dict = sed_mix.get_mix_data5b(batch_10s_dict)
 
         if batch_data_dict:
             if False:
@@ -304,7 +321,7 @@ def train(args):
             ss_model.train()
             if mix_type in ['1', '2', '4', '4b']:
                 batch_output_dict = ss_model(batch_data_dict['mixture'], batch_data_dict['hard_condition'])
-            elif mix_type in ['3', '5']:
+            elif mix_type in ['3', '5', '5b']:
                 batch_output_dict = ss_model(batch_data_dict['mixture'], batch_data_dict['soft_condition'])
 
             loss = loss_func(batch_output_dict['wav'], batch_data_dict['source'])
