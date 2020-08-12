@@ -23,7 +23,7 @@ from losses import get_loss_func
 from data_generator import SsAudioSetDataset, SsBalancedSampler, SsEvaluateSampler, collect_fn 
 # from pytorch_utils import count_parameters, SedMix, debug_and_plot, move_data_to_device
 from pytorch_utils import count_parameters, SedMix, move_data_to_device, id_to_one_hot
-from panns_inference import SoundEventDetection, AudioTagging
+from panns_inference import SoundEventDetection, AudioTagging, labels
 from evaluate import Evaluator, average_dict, calculate_sdr
 
 
@@ -542,6 +542,19 @@ def validate(args):
         print(config.labels[batch_data_dict['class_id'][K]])
 
 
+def print_audio_tagging_result(clipwise_output):
+    """Visualization of audio tagging result.
+    Args:
+      clipwise_output: (classes_num,)
+    """
+    sorted_indexes = np.argsort(clipwise_output)[::-1]
+
+    # Print audio tagging top probabilities
+    for k in range(10):
+        print('{} {}: {:.3f}'.format(sorted_indexes[k], np.array(labels)[sorted_indexes[k]], 
+            clipwise_output[sorted_indexes[k]]))
+
+
 def inference_new(args):
     # Arugments & parameters
     workspace = args.workspace
@@ -571,12 +584,13 @@ def inference_new(args):
     #     'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
     #     '{}_iterations.pth'.format(iteration))
     # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/batch_size=12/1000000_iterations.pth'
+
     # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=3/batch_size=12/520000_iterations.pth'
     # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4/batch_size=12/400000_iterations.pth'
     # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4b/batch_size=12/500000_iterations.pth'
     # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/100000_iterations.pth'
-    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=full_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/150000_iterations.pth'
-    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5b/batch_size=12/200000_iterations.pth'
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=full_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/150000_iterations.pth'
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5b/batch_size=12/200000_iterations.pth'
 
     if 'cuda' in str(device):
         logging.info('Using GPU.')
@@ -607,35 +621,45 @@ def inference_new(args):
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
     #
+    # (audio, fs) = librosa.core.load('resources/beethoven_violin_sonata_20s.mp3', sr=32000, mono=True)
     (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
+ 
+    (clipwise_output, embedding) = at_model.inference(audio[None, :])
+    print_audio_tagging_result(clipwise_output[0])
+
     # id1 = 67
     id1 = 0
     # batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': id_to_one_hot(id1, classes_num)[None, :]}
 
     # hard_condition = id_to_one_hot(id1, classes_num)[None, :]
     # id1 = 0
-    hard_condition = id_to_one_hot(id1, classes_num)[None, :]
 
-    batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': hard_condition}
+    def _add(id1):
+        hard_condition = id_to_one_hot(id1, classes_num)[None, :]
 
-    # Move data to device
-    for key in batch_data_dict.keys():
-        batch_data_dict[key] = move_data_to_device(batch_data_dict[key], device)
+        batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': hard_condition}
 
-    # Separate
-    with torch.no_grad():
-        ss_model.eval()
+        # Move data to device
+        for key in batch_data_dict.keys():
+            batch_data_dict[key] = move_data_to_device(batch_data_dict[key], device)
 
-        batch_output_dict = ss_model(
-            batch_data_dict['mixture'], 
-            batch_data_dict['hard_condition'])
+        # Separate
+        with torch.no_grad():
+            ss_model.eval()
 
-        batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()
+            batch_output_dict = ss_model(
+                batch_data_dict['mixture'], 
+                batch_data_dict['hard_condition'])
 
-    
-    K = 0
-    librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], sr=32000)
-    librosa.output.write_wav('_zz2.wav', batch_sep_wavs[K, :, 0], sr=32000)
+            batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()
+
+        K = 0
+        librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'].data.cpu().numpy()[K, :, 0], sr=32000)
+        librosa.output.write_wav('_zz2.wav', batch_sep_wavs[K, :, 0], sr=32000)
+
+    import crash
+    asdf
+    _add(67)
     # import crash
     # asdf
         
