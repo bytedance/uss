@@ -219,7 +219,7 @@ def train(args):
     t1 = time.time()
 
     for batch_10s_dict in train_loader:
-        '''
+        
         # Evaluate  
         if (iteration % 10000 == 0 and iteration > resume_iteration) or (iteration == 0):
             train_fin_time = time.time()
@@ -251,7 +251,7 @@ def train(args):
             logging.info('------------------------------------')
 
             train_bgn_time = time.time()
-        '''
+        
         # Save model
         if iteration % 50000 == 0:
             checkpoint = {
@@ -537,16 +537,8 @@ def inference_new(args):
     max_iteration = int(np.ceil(classes_num * 50 / batch_size))
 
     # Paths
-    # checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
-    #     'data_type={}'.format(data_type), model_type, 
-    #     'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
-    #     'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
-    #     '{}_iterations.pth'.format(iteration))
-    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/batch_size=12/1000000_iterations.pth'
-    checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=3/batch_size=12/520000_iterations.pth'
-    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4/batch_size=12/400000_iterations.pth'
-    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4b/batch_size=12/500000_iterations.pth'
-    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/80000_iterations.pth'
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main_16k/data_type=balanced_train/UNet_16k/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/200000_iterations.pth'
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main_16k/data_type=full_train/UNet_16k/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/50000_iterations.pth'
 
     if 'cuda' in str(device):
         logging.info('Using GPU.')
@@ -577,7 +569,7 @@ def inference_new(args):
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
     #
-    (audio, fs) = librosa.core.load('resources/6.mp3', sr=32000, mono=True)
+    (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
     # id1 = 67
     # id1 = 0
     # batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': id_to_one_hot(id1, classes_num)[None, :]}
