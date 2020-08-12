@@ -621,6 +621,7 @@ def inference_new(args):
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
     #
+    # (audio, fs) = librosa.core.load('resources/vocals_accompaniment_10s.mp3', sr=32000, mono=True)
     # (audio, fs) = librosa.core.load('resources/beethoven_violin_sonata_20s.mp3', sr=32000, mono=True)
     (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
  
