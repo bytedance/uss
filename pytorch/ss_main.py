@@ -571,10 +571,12 @@ def inference_new(args):
     #     'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
     #     '{}_iterations.pth'.format(iteration))
     # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/batch_size=12/1000000_iterations.pth'
-    checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=3/batch_size=12/520000_iterations.pth'
+    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=3/batch_size=12/520000_iterations.pth'
     # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4/batch_size=12/400000_iterations.pth'
     # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4b/batch_size=12/500000_iterations.pth'
-    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/80000_iterations.pth'
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/100000_iterations.pth'
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=full_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/150000_iterations.pth'
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5b/batch_size=12/200000_iterations.pth'
 
     if 'cuda' in str(device):
         logging.info('Using GPU.')
@@ -605,13 +607,13 @@ def inference_new(args):
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
     #
-    (audio, fs) = librosa.core.load('resources/6.mp3', sr=32000, mono=True)
+    (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
     # id1 = 67
-    # id1 = 0
+    id1 = 0
     # batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': id_to_one_hot(id1, classes_num)[None, :]}
 
     # hard_condition = id_to_one_hot(id1, classes_num)[None, :]
-    id1 = 0
+    # id1 = 0
     hard_condition = id_to_one_hot(id1, classes_num)[None, :]
 
     batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': hard_condition}
