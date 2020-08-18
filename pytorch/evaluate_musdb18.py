@@ -225,6 +225,9 @@ def evaluate(args):
 
         all_sdrs.append(sdr)
 
+        import crash
+        asdf
+
     track = mus.tracks[mus.get_track_indices_by_names(name)[0]]
     print('mean sdr: {:.3f}'.format(np.mean(all_sdrs)))
     print('median sdr: {:.3f}'.format(np.median(all_sdrs)))

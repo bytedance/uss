@@ -590,7 +590,7 @@ def inference_new(args):
     # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4b/batch_size=12/500000_iterations.pth'
     # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/100000_iterations.pth'
     # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=full_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/150000_iterations.pth'
-    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5b/batch_size=12/200000_iterations.pth'
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5b/batch_size=12/950000_iterations.pth'
 
     if 'cuda' in str(device):
         logging.info('Using GPU.')
@@ -624,6 +624,8 @@ def inference_new(args):
     # (audio, fs) = librosa.core.load('resources/vocals_accompaniment_10s.mp3', sr=32000, mono=True)
     # (audio, fs) = librosa.core.load('resources/beethoven_violin_sonata_20s.mp3', sr=32000, mono=True)
     (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
+    # (audio, fs) = librosa.core.load('resources2/4a.mp3', sr=32000, mono=True)
+    audio = audio[0 : 30 * fs]
  
     (clipwise_output, embedding) = at_model.inference(audio[None, :])
     print_audio_tagging_result(clipwise_output[0])
@@ -660,9 +662,117 @@ def inference_new(args):
 
     import crash
     asdf
-    _add(67)
+    _add(0)
     # import crash
     # asdf
+
+
+def inference_new_stereo(args):
+    # Arugments & parameters
+    workspace = args.workspace
+    at_checkpoint_path = args.at_checkpoint_path
+    data_type = args.data_type
+    model_type = args.model_type
+    loss_type = args.loss_type
+    balanced = args.balanced
+    augmentation = args.augmentation
+    batch_size = args.batch_size
+    iteration = args.iteration
+    device = torch.device('cuda') if args.cuda and torch.cuda.is_available() else torch.device('cpu')
+    filename = args.filename
+
+    num_workers = 8
+    sample_rate = config.sample_rate
+    clip_samples = config.clip_samples
+    classes_num = config.classes_num
+    segment_frames = config.segment_frames
+    loss_func = get_loss_func(loss_type)
+    max_iteration = int(np.ceil(classes_num * 50 / batch_size))
+
+    # Paths
+    # checkpoint_path = os.path.join(workspace, 'checkpoints', filename, 
+    #     'data_type={}'.format(data_type), model_type, 
+    #     'loss_type={}'.format(loss_type), 'balanced={}'.format(balanced), 
+    #     'augmentation={}'.format(augmentation), 'batch_size={}'.format(batch_size), 
+    #     '{}_iterations.pth'.format(iteration))
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/batch_size=12/1000000_iterations.pth'
+
+    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=3/batch_size=12/520000_iterations.pth'
+    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4/batch_size=12/400000_iterations.pth'
+    # checkpoint_path = '/root/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=4b/batch_size=12/500000_iterations.pth'
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/100000_iterations.pth'
+    # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=full_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/150000_iterations.pth'
+    checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5b/batch_size=12/950000_iterations.pth'
+
+    if 'cuda' in str(device):
+        logging.info('Using GPU.')
+        device = 'cuda'
+    else:
+        logging.info('Using CPU.')
+        device = 'cpu'
+
+    # Source separation model
+    SsModel = eval(model_type)
+    ss_model = SsModel(channels=1)
+    
+    # Resume training
+    checkpoint = torch.load(checkpoint_path)
+    ss_model.load_state_dict(checkpoint['model'])
+    
+    # Parallel
+    print('GPU number: {}'.format(torch.cuda.device_count()))
+    ss_model = torch.nn.DataParallel(ss_model)
+
+    if 'cuda' in str(device):
+        ss_model.to(device)
+    
+    sed_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_DecisionLevelMax_mAP=0.385.pth'
+    at_checkpoint_path = '/home/tiger/released_models/sed/Cnn14_mAP=0.431.pth'
+    sed_model = SoundEventDetection(device=device, checkpoint_path=sed_checkpoint_path)
+    at_model = AudioTagging(device=device, checkpoint_path=at_checkpoint_path)
+    sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
+
+    #
+    (audio, fs) = librosa.core.load('resources2/1a.mp3', sr=32000, mono=False)
+    audio = audio[:, 0 : 30 * fs]
+ 
+    (clipwise_output, embedding) = at_model.inference(np.mean(audio, axis=0)[None, :])
+    print_audio_tagging_result(clipwise_output[0])
+
+    # id1 = 67
+    id1 = 0
+    # batch_data_dict = {'mixture': audio[None, :, None], 'hard_condition': id_to_one_hot(id1, classes_num)[None, :]}
+
+    # hard_condition = id_to_one_hot(id1, classes_num)[None, :]
+    # id1 = 0
+
+    def _add(id1):
+        hard_condition = id_to_one_hot(id1, classes_num)[None, :]
+        hard_condition = np.tile(hard_condition, (2, 1))
+
+        batch_data_dict = {'mixture': audio[:, :, None], 'hard_condition': hard_condition}
+
+        # Move data to device
+        for key in batch_data_dict.keys():
+            batch_data_dict[key] = move_data_to_device(batch_data_dict[key], device)
+
+        # Separate
+        with torch.no_grad():
+            ss_model.eval()
+
+            batch_output_dict = ss_model(
+                batch_data_dict['mixture'], 
+                batch_data_dict['hard_condition'])
+
+            batch_sep_wavs = batch_output_dict['wav'].data.cpu().numpy()
+
+        K = 0
+        librosa.output.write_wav('_zz.wav', batch_data_dict['mixture'].data.cpu().numpy()[:, :, 0], sr=32000)
+        librosa.output.write_wav('_zz2.wav', batch_sep_wavs[:, :, 0], sr=32000)
+
+    import crash
+    asdf
+    _add(0)
         
 
 if __name__ == '__main__':
@@ -710,6 +820,18 @@ if __name__ == '__main__':
     parser_inference_new.add_argument('--batch_size', type=int, required=True)
     parser_inference_new.add_argument('--iteration', type=int, required=True)
     parser_inference_new.add_argument('--cuda', action='store_true', default=False)
+
+    parser_inference_new_stereo = subparsers.add_parser('inference_new_stereo')
+    parser_inference_new_stereo.add_argument('--workspace', type=str, required=True)
+    parser_inference_new_stereo.add_argument('--at_checkpoint_path', type=str, required=True)
+    parser_inference_new_stereo.add_argument('--data_type', type=str, required=True)
+    parser_inference_new_stereo.add_argument('--model_type', type=str, required=True)
+    parser_inference_new_stereo.add_argument('--loss_type', type=str, required=True)
+    parser_inference_new_stereo.add_argument('--balanced', type=str, default='balanced', choices=['balanced'])
+    parser_inference_new_stereo.add_argument('--augmentation', type=str, default='mixup', choices=['none'])
+    parser_inference_new_stereo.add_argument('--batch_size', type=int, required=True)
+    parser_inference_new_stereo.add_argument('--iteration', type=int, required=True)
+    parser_inference_new_stereo.add_argument('--cuda', action='store_true', default=False)
      
     args = parser.parse_args()
     args.filename = get_filename(__file__)
@@ -725,6 +847,9 @@ if __name__ == '__main__':
 
     elif args.mode == 'inference_new':
         inference_new(args)
+
+    elif args.mode == 'inference_new_stereo':
+        inference_new_stereo(args)
 
     else:
         raise Exception('Error argument!')
