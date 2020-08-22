@@ -59,10 +59,10 @@ class SourceSeparation(object):
         model_type = 'UNet'
         self.segment_samples = segment_samples
 
-        # Paths
-        checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/480000_iterations.pth'
+        # Paths 
+        # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5/batch_size=12/650000_iterations.pth'
+        checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5b/batch_size=12/1000000_iterations.pth'
         # checkpoint_path = '/home/tiger/workspaces/audioset_source_separation/checkpoints/ss_main/data_type=balanced_train/UNet/loss_type=mae/balanced=balanced/augmentation=none/mix_type=5b/batch_size=12/200000_iterations.pth'
-
 
         if 'cuda' in str(self.device):
             logging.info('Using GPU.')
@@ -123,6 +123,7 @@ class SourceSeparation(object):
                     tmp = []
                     for i in range(2):
                         hard_condition = id_to_one_hot(id1, self.classes_num)[None, :]
+                        hard_condition[:, 27] = 1
                         batch_data_dict = {'mixture': seg[:, i][None, :, None], 'hard_condition': hard_condition}
 
                         # Move data to device
@@ -224,9 +225,6 @@ def evaluate(args):
         print('{}, sdr: {:.3f}'.format(name, sdr))
 
         all_sdrs.append(sdr)
-
-        import crash
-        asdf
 
     track = mus.tracks[mus.get_track_indices_by_names(name)[0]]
     print('mean sdr: {:.3f}'.format(np.mean(all_sdrs)))

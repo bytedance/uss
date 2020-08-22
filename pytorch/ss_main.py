@@ -623,8 +623,9 @@ def inference_new(args):
     #
     # (audio, fs) = librosa.core.load('resources/vocals_accompaniment_10s.mp3', sr=32000, mono=True)
     # (audio, fs) = librosa.core.load('resources/beethoven_violin_sonata_20s.mp3', sr=32000, mono=True)
-    (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
+    # (audio, fs) = librosa.core.load('resources/4.mp3', sr=32000, mono=True)
     # (audio, fs) = librosa.core.load('resources2/4a.mp3', sr=32000, mono=True)
+    (audio, fs) = librosa.core.load('resources2/dongfangzhizhu.wav', sr=32000, mono=True)
     audio = audio[0 : 30 * fs]
  
     (clipwise_output, embedding) = at_model.inference(audio[None, :])
@@ -733,7 +734,7 @@ def inference_new_stereo(args):
     sed_mix = SedMix(sed_model, at_model, segment_frames=segment_frames, sample_rate=sample_rate)
 
     #
-    (audio, fs) = librosa.core.load('resources2/1a.mp3', sr=32000, mono=False)
+    (audio, fs) = librosa.core.load('resources2/dongfangzhizhu.wav', sr=32000, mono=False)
     audio = audio[:, 0 : 30 * fs]
  
     (clipwise_output, embedding) = at_model.inference(np.mean(audio, axis=0)[None, :])
