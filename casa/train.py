@@ -3,11 +3,15 @@ import logging
 import os
 import pathlib
 from typing import List, NoReturn
+import pytorch_lightning as pl
 
 from casa.data.data_modules import DataModule, Dataset
 from casa.utils import create_logging, read_yaml
 from casa.data.samplers import BalancedSampler
 from casa.data.data_modules import DataModule
+from casa.models.resunet import *
+from casa.losses import get_loss_function
+from casa.models.pl_modules import LitModel
 
 # import pytorch_lightning as pl
 # from pytorch_lightning.plugins import DDPPlugin
@@ -93,7 +97,7 @@ def get_dirs(workspace: str, filename: str, config_yaml: str, devices_num: int) 
 
 
 def get_data_module(
-    workspace: str, config_yaml: str, num_workers: int, devices_num: int,
+    workspace: str, config_yaml: str, num_workers: int,
 ) -> DataModule:
     r"""Create data_module. Mini-batch data can be obtained by:
 
@@ -141,9 +145,10 @@ def get_data_module(
 
     data_module.setup()
 
-    for batch_data_dict in data_module.train_dataloader():
-        # print(batch_data_dict.keys())
-        from IPython import embed; embed(using=False); os._exit(0)
+    # for batch_data_dict in data_module.train_dataloader():
+    #     # print(batch_data_dict.keys())
+    #     # batch_data_dict['audio_name']
+    #     from IPython import embed; embed(using=False); os._exit(0)
 
     return data_module
 
@@ -174,6 +179,7 @@ def train(args) -> NoReturn:
     filename = args.filename
 
     devices_num = get_devices_num()
+    print(devices_num)
 
     # distributed = True if gpus > 1 else False
     # evaluate_device = "cuda"  # Evaluate on a single GPU card.
@@ -182,6 +188,13 @@ def train(args) -> NoReturn:
     configs = read_yaml(config_yaml)
 
     num_workers = configs['train']['num_workers']
+    model_type = configs['model']['model_type']
+    input_channels = configs['model']['input_channels']
+    output_channels = configs['model']['output_channels']
+    condition_size = configs['data']['condition_size']
+    loss_type = configs['train']['loss_type']
+    learning_rate = float(configs['train']['learning_rate'])
+
 
     # sed_checkpoint_path = configs["train"]["sed_checkpoint_path"]
     # at_checkpoint_path = configs["train"]["at_checkpoint_path"]
@@ -233,16 +246,18 @@ def train(args) -> NoReturn:
     #     condition_type=condition_type,
     # )
     
-    # # model
-    # Model = eval(model_type)
-    # ss_model = Model(
-    #     input_channels=input_channels,
-    #     output_channels=output_channels,
-    #     condition_size=condition_size,
-    # )
+    # model
+    Model = eval(model_type)
+    # Model = str_to_class(model_type)
+
+    ss_model = Model(
+        input_channels=input_channels,
+        output_channels=output_channels,
+        condition_size=condition_size,
+    )
 
     # # loss function
-    # loss_function = get_loss_function(loss_type)
+    loss_function = get_loss_function(loss_type)
 
     # # callbacks
     # callbacks = get_audioset_callbacks(
@@ -257,21 +272,21 @@ def train(args) -> NoReturn:
     # )
     # # callbacks = []
 
-    # # learning rate reduce function
+    # learning rate reduce function
     # lr_lambda = lambda step: get_lr_lambda(
     #     step, warm_up_steps=warm_up_steps, reduce_lr_steps=reduce_lr_steps
     # )
 
-    # # pytorch-lightning model
-    # pl_model = LitSourceSeparation(
-    #     ss_model=ss_model,
-    #     batch_data_preprocessor=batch_data_preprocessor,
-    #     loss_function=loss_function,
-    #     learning_rate=learning_rate,
-    #     lr_lambda=lr_lambda,
-    # )
+    # pytorch-lightning model
+    pl_model = LitModel(
+        ss_model=ss_model,
+        # batch_data_preprocessor=batch_data_preprocessor,
+        loss_function=loss_function,
+        learning_rate=learning_rate,
+        # lr_lambda=lr_lambda,
+    )
 
-    # # trainer
+    # trainer
     # trainer = pl.Trainer(
     #     checkpoint_callback=False,
     #     gpus=gpus,
@@ -284,9 +299,16 @@ def train(args) -> NoReturn:
     #     replace_sampler_ddp=False,
     #     plugins=[DDPPlugin(find_unused_parameters=True)],
     # )
+    trainer = pl.Trainer(
+        devices='auto',
+        num_nodes=1,
+        callbacks=None,
+        fast_dev_run=False,
+        max_epochs=-1,
+    )
 
-    # # Fit, evaluate, and save checkpoints.
-    # trainer.fit(pl_model, data_module)
+    # Fit, evaluate, and save checkpoints.
+    trainer.fit(pl_model, data_module)
 
 
 if __name__ == "__main__":

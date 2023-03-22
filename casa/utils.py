@@ -3,6 +3,7 @@ import logging
 import yaml
 import datetime
 import pickle
+import sys
 
 import librosa
 import torch
@@ -51,6 +52,10 @@ def int16_to_float32(x):
 def read_yaml(config_yaml):
     with open(config_yaml, "r") as fr:
         return yaml.load(fr, Loader=yaml.FullLoader)
+
+
+# def str_to_class(classname):
+#     return getattr(sys.modules[__name__], classname)
 
 
 class StatisticsContainer(object):

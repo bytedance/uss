@@ -9,6 +9,8 @@ from torch.utils.data import DataLoader
 
 # from audioset_source_separation.data.samplers import BalancedSampler, DistributedSamplerWrapper
 from casa.utils import int16_to_float32
+from casa.data.samplers import DistributedSamplerWrapper
+# from casa.data.datasets import Dataset
 
 
 class DataModule(L.LightningDataModule):
@@ -35,8 +37,8 @@ class DataModule(L.LightningDataModule):
             distributed: bool
         """
         super().__init__()
-        self.train_sampler = train_sampler
-        self.train_dataset = train_dataset
+        self._train_sampler = train_sampler
+        self._train_dataset = train_dataset
         self.num_workers = num_workers
         # self.distributed = distributed
         self.collate_fn = collate_fn
@@ -55,13 +57,16 @@ class DataModule(L.LightningDataModule):
         # SegmentSampler is used for selecting segments for training.
         # On multiple devices, each SegmentSampler samples a part of mini-batch
         # data.
-        pass
+        # self.train_dataset = self._train_dataset
+        self.train_dataset = Dataset() 
+        # self.train_sampler = self._train_sampler
+        # self.train_sampler = DistributedSamplerWrapper(self._train_sampler)
 
     def train_dataloader(self) -> torch.utils.data.DataLoader:
         r"""Get train loader."""
         train_loader = DataLoader(
             dataset=self.train_dataset,
-            batch_sampler=self.train_sampler,
+            # batch_sampler=self.train_sampler,
             collate_fn=self.collate_fn,
             num_workers=self.num_workers,
             pin_memory=True,
@@ -140,6 +145,9 @@ class Dataset:
         }
 
         return data_dict
+
+    def __len__(self):
+        return 10000
 
 
 

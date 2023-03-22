@@ -1,0 +1,48 @@
+---
+task_name: audioset
+sed_checkpoint_path: "./downloaded_checkpoints/Cnn14_DecisionLevelMax_mAP=0.385.pth"
+at_checkpoint_path: "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
+
+data:
+    indexes_dict: "hdf5s/indexes/balanced_train.h5"
+    sampler_type: "balanced_sampler"
+    sample_rate: 32000
+    frames_per_second: 100
+    segment_seconds: 2.0
+    augmentation:
+        match_energy: True
+        random_scale:
+            lower_db: 0
+            higher_db: 0
+    condition_type: 'one-hot'
+    condition_size: 527
+
+model:
+    model_type: ResUNet30
+    input_channels: 1
+    output_channels: 1
+    resume_checkpoint: ""
+
+train:
+    num_workers: 8
+    loss_type: l1_wav
+    optimizer_type: AdamW
+    learning_rate: 1e-3
+    batch_size: 12
+    precision: 32
+    steps_per_epoch: 10000  # Every 10000 steps is called an `epoch`.
+    evaluate_step_frequency: 20000     # Evaluate every #evaluate_step_frequency steps.
+    save_step_frequency: 20000  # Save every #save_step_frequency steps.
+    early_stop_steps: 10000001
+    warm_up_steps: -1
+    reduce_lr_steps: 1000000
+    random_seed: 1234
+    
+#     batch_data_preprocessor: AudioSetBatchDataPreprocessor4
+#     segment_mix_type: "none"
+
+# evaluate:
+#     balanced_train_hdf5: "hdf5s/waveforms/balanced_train.h5"
+#     balanced_train_meta_csv: "eval_meta/eval_balanced_train.csv"
+#     test_hdf5: "hdf5s/waveforms/eval.h5"
+#     test_meta_csv: "eval_meta/eval_test.csv"

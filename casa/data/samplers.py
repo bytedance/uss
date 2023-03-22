@@ -49,7 +49,7 @@ class Base:
 
 class BalancedSampler(Base):
     def __init__(self, indexes_hdf5_path, batch_size, steps_per_epoch, black_list_csv=None, 
-        random_seed=1234):
+        random_seed=1234, drop_last=True):
         """Balanced sampler. Generate batch meta for training. Data are equally 
         sampled from different sound classes.
         
@@ -82,6 +82,9 @@ class BalancedSampler(Base):
         
         self.queue = []
         self.pointers_of_classes = [0] * self.classes_num
+
+        self.drop_last = drop_last
+        self.steps_per_epoch = steps_per_epoch
         
     def expand_queue(self, queue):
         classes_set = np.arange(self.classes_num).tolist()
@@ -799,21 +802,21 @@ class KechenSampler:
 
 
 
-# class DistributedSamplerWrapper:
-#     def __init__(self, sampler):
-#         r"""Distributed wrapper of sampler.
-#         """
+class DistributedSamplerWrapper:
+    def __init__(self, sampler):
+        r"""Distributed wrapper of sampler.
+        """
 
-#         # self.num_replicas = dist.get_world_size()
-#         # self.rank = dist.get_rank()
-#         self.sampler = sampler
+        # self.num_replicas = dist.get_world_size()
+        # self.rank = dist.get_rank()
+        self.sampler = sampler
 
-#     def __iter__(self):
-#         num_replicas = dist.get_world_size()
-#         rank = dist.get_rank()
+    def __iter__(self):
+        num_replicas = dist.get_world_size()
+        rank = dist.get_rank()
 
-#         for indices in self.sampler:
-#             yield indices[rank :: num_replicas]
+        for indices in self.sampler:
+            yield indices[rank :: num_replicas]
 
-#     def __len__(self):
-#         return len(self.sampler)
+    def __len__(self):
+        return len(self.sampler)
