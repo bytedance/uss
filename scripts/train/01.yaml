@@ -1,7 +1,15 @@
 ---
 task_name: audioset
-sed_checkpoint_path: "./downloaded_checkpoints/Cnn14_DecisionLevelMax_mAP=0.385.pth"
-at_checkpoint_path: "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
+
+sound_event_detection:
+    model_name: "Cnn14_DecisionLevelMax"
+    checkpoint_path: "./downloaded_checkpoints/Cnn14_DecisionLevelMax_mAP=0.385.pth"
+    freeze: True
+
+audio_tagging:
+    model_name: "Cnn14"
+    checkpoint_path: "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
+    freeze: True
 
 data:
     indexes_dict: "hdf5s/indexes/balanced_train.h5"
@@ -24,11 +32,11 @@ model:
     resume_checkpoint: ""
 
 train:
-    num_workers: 8
+    num_workers: 0
     loss_type: l1_wav
     optimizer_type: AdamW
     learning_rate: 1e-3
-    batch_size: 12
+    batch_size_per_device: 12
     precision: 32
     steps_per_epoch: 10000  # Every 10000 steps is called an `epoch`.
     evaluate_step_frequency: 20000     # Evaluate every #evaluate_step_frequency steps.

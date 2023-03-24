@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader
 
 # from audioset_source_separation.data.samplers import BalancedSampler, DistributedSamplerWrapper
 from casa.utils import int16_to_float32
-from casa.data.samplers import DistributedSamplerWrapper
+from casa.data.samplers import DistributedSamplerWrapper#, BatchSampler, BatchSampler2
 # from casa.data.datasets import Dataset
 
 
@@ -43,6 +43,8 @@ class DataModule(L.LightningDataModule):
         # self.distributed = distributed
         self.collate_fn = collate_fn
 
+        # self._train_sampler = BatchSampler(BalancedSampler(), batch_size=16, drop_last=True)
+
     def prepare_data(self):
         # download, split, etc...
         # only called on 1 GPU/TPU in distributed
@@ -57,20 +59,20 @@ class DataModule(L.LightningDataModule):
         # SegmentSampler is used for selecting segments for training.
         # On multiple devices, each SegmentSampler samples a part of mini-batch
         # data.
-        # self.train_dataset = self._train_dataset
-        self.train_dataset = Dataset() 
+        self.train_dataset = self._train_dataset
+        
+        self.train_sampler = DistributedSamplerWrapper(self._train_sampler)
         # self.train_sampler = self._train_sampler
-        # self.train_sampler = DistributedSamplerWrapper(self._train_sampler)
-
+        
     def train_dataloader(self) -> torch.utils.data.DataLoader:
         r"""Get train loader."""
         train_loader = DataLoader(
             dataset=self.train_dataset,
-            # batch_sampler=self.train_sampler,
+            batch_sampler=self.train_sampler,
             collate_fn=self.collate_fn,
             num_workers=self.num_workers,
             pin_memory=True,
-            persistent_workers=True,
+            persistent_workers=False,
         )
 
         return train_loader
@@ -121,6 +123,7 @@ class Dataset:
                 'class_id': int,
             }
         """
+        
         hdf5_path = meta['hdf5_path']
         index_in_hdf5 = meta['index_in_hdf5']
         class_id = meta['class_id']

@@ -2,13 +2,106 @@ import logging
 import os
 import pathlib
 import pickle
-from typing import Dict
+from typing import Dict, List, Union, Iterable, Iterator
 import time
 
 import numpy as np
 import h5py
 from pytorch_lightning.utilities import rank_zero_only
 import torch.distributed as dist
+from torch.utils.data.sampler import Sampler
+
+'''
+class BatchSampler(Sampler[List[int]]):
+    r"""Wraps another sampler to yield a mini-batch of indices.
+    Args:
+        sampler (Sampler or Iterable): Base sampler. Can be any iterable object
+        batch_size (int): Size of mini-batch.
+        drop_last (bool): If ``True``, the sampler will drop the last batch if
+            its size would be less than ``batch_size``
+    Example:
+        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=False))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
+        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=True))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+    """
+
+    def __init__(self, sampler: Union[Sampler[int], Iterable[int]], batch_size: int, drop_last: bool) -> None:
+        # Since collections.abc.Iterable does not check for `__getitem__`, which
+        # is one way for an object to be an iterable, we don't do an `isinstance`
+        # check here.
+        if not isinstance(batch_size, int) or isinstance(batch_size, bool) or \
+                batch_size <= 0:
+            raise ValueError("batch_size should be a positive integer value, "
+                             "but got batch_size={}".format(batch_size))
+        if not isinstance(drop_last, bool):
+            raise ValueError("drop_last should be a boolean value, but got "
+                             "drop_last={}".format(drop_last))
+        self.sampler = sampler
+        self.batch_size = batch_size
+        self.drop_last = drop_last
+
+    def __iter__(self) -> Iterator[List[int]]:
+        # Implemented based on the benchmarking in https://github.com/pytorch/pytorch/pull/76951
+        # from IPython import embed; embed(using=False); os._exit(0)
+        if self.drop_last:
+            sampler_iter = iter(self.sampler)
+            while True:
+                try:
+                    batch = [next(sampler_iter) for _ in range(self.batch_size)]
+                    yield batch
+                except StopIteration:
+                    break
+        else:
+            batch = [0] * self.batch_size
+            idx_in_batch = 0
+            for idx in self.sampler:
+                batch[idx_in_batch] = idx
+                idx_in_batch += 1
+                if idx_in_batch == self.batch_size:
+                    yield batch
+                    idx_in_batch = 0
+                    batch = [0] * self.batch_size
+            if idx_in_batch > 0:
+                yield batch[:idx_in_batch]
+
+    def __len__(self) -> int:
+        # Can only be called if self.sampler has __len__ implemented
+        # We cannot enforce this condition, so we turn off typechecking for the
+        # implementation below.
+        # Somewhat related: see NOTE [ Lack of Default `__len__` in Python Abstract Base Classes ]
+        if self.drop_last:
+            return len(self.sampler) // self.batch_size  # type: ignore[arg-type]
+        else:
+            return (len(self.sampler) + self.batch_size - 1) // self.batch_size  # type: ignore[arg-type]
+'''
+
+class Sampler3(Sampler[List[int]]): 
+    r"""Wraps another sampler to yield a mini-batch of indices.
+    Args:
+        sampler (Sampler or Iterable): Base sampler. Can be any iterable object
+        batch_size (int): Size of mini-batch.
+        drop_last (bool): If ``True``, the sampler will drop the last batch if
+            its size would be less than ``batch_size``
+    Example:
+        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=False))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
+        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=True))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+    """
+
+    def __init__(self) -> None:
+        # Since collections.abc.Iterable does not check for `__getitem__`, which
+        # is one way for an object to be an iterable, we don't do an `isinstance`
+        # check here.
+        # self.batch_size = batch_size
+        self.drop_last = True
+
+    def __iter__(self) -> Iterator[List[int]]:
+        yield 1
+
+    def __len__(self) -> int:
+        return 10000
 
 
 class Base:
@@ -46,8 +139,7 @@ class Base:
         logging.info('Load target time: {:.3f} s'.format(time.time() - load_time))
 
 
-
-class BalancedSampler(Base):
+class BalancedSampler(Base, Sampler):
     def __init__(self, indexes_hdf5_path, batch_size, steps_per_epoch, black_list_csv=None, 
         random_seed=1234, drop_last=True):
         """Balanced sampler. Generate batch meta for training. Data are equally 
@@ -149,6 +241,104 @@ class BalancedSampler(Base):
     def __len__(self):
         return self.steps_per_epoch
 
+'''
+class BalancedSampler(Base, Sampler):
+    def __init__(self, indexes_hdf5_path, batch_size, steps_per_epoch, black_list_csv=None, 
+        random_seed=1234, drop_last=True):
+        """Balanced sampler. Generate batch meta for training. Data are equally 
+        sampled from different sound classes.
+        
+        Args:
+          indexes_hdf5_path: string
+          batch_size: int
+          black_list_csv: string
+          random_seed: int
+        """
+        super(BalancedSampler, self).__init__(indexes_hdf5_path, 
+            batch_size, black_list_csv, random_seed)
+        
+        self.steps_per_epoch = steps_per_epoch
+
+        self.samples_num_per_class = np.sum(self.targets, axis=0)
+        logging.info('samples_num_per_class: {}'.format(
+            self.samples_num_per_class.astype(np.int32)))
+        
+        # Training indexes of all sound classes. E.g.: 
+        # [[0, 11, 12, ...], [3, 4, 15, 16, ...], [7, 8, ...], ...]
+        self.indexes_per_class = []
+        
+        for k in range(self.classes_num):
+            self.indexes_per_class.append(
+                np.where(self.targets[:, k] == 1)[0])
+            
+        # Shuffle indexes
+        for k in range(self.classes_num):
+            self.random_state.shuffle(self.indexes_per_class[k])
+        
+        self.queue = []
+        self.pointers_of_classes = [0] * self.classes_num
+
+        self.drop_last = drop_last
+        self.steps_per_epoch = steps_per_epoch
+        
+    def expand_queue(self, queue):
+        classes_set = np.arange(self.classes_num).tolist()
+        self.random_state.shuffle(classes_set)
+        queue += classes_set
+        return queue
+
+    def __iter__(self):
+        """Generate batch meta for training. 
+        
+        Returns:
+          batch_meta: e.g.: [
+            {'audio_name': 'YfWBzCRl6LUs.wav', 
+             'hdf5_path': 'xx/balanced_train.h5', 
+             'index_in_hdf5': 15734, 
+             'target': [0, 1, 0, 0, ...]}, 
+            ...]
+        """
+        gggg
+        batch_size = self.batch_size
+        
+        while True:
+            
+            if len(self.queue) == 0:
+                self.queue = self.expand_queue(self.queue)
+
+            class_id = self.queue.pop(0)
+            pointer = self.pointers_of_classes[class_id]
+            self.pointers_of_classes[class_id] += 1
+            index = self.indexes_per_class[class_id][pointer]
+            
+            # When finish one epoch of a sound class, then shuffle its indexes and reset pointer
+            if self.pointers_of_classes[class_id] >= self.samples_num_per_class[class_id]:
+                self.pointers_of_classes[class_id] = 0
+                self.random_state.shuffle(self.indexes_per_class[class_id])
+
+            # If audio in black list then continue
+            if self.audio_names[index] in self.black_list_names:
+                continue
+            else:
+                meta = {
+                    'hdf5_path': self.hdf5_paths[index], 
+                    'index_in_hdf5': self.indexes_in_hdf5[index], 
+                    'class_id': class_id}
+            print('***', meta)
+            yield meta
+
+    def state_dict(self):
+        state = {
+            'indexes_per_class': self.indexes_per_class, 
+            'queue': self.queue, 
+            'pointers_of_classes': self.pointers_of_classes}
+        return state
+            
+    def load_state_dict(self, state):
+        self.indexes_per_class = state['indexes_per_class']
+        self.queue = state['queue']
+        self.pointers_of_classes = state['pointers_of_classes']
+'''
 
 class BalancedSampler2(Base):
     def __init__(self, indexes_hdf5_path, batch_size, steps_per_epoch, black_list_csv=None, 
@@ -812,8 +1002,14 @@ class DistributedSamplerWrapper:
         self.sampler = sampler
 
     def __iter__(self):
-        num_replicas = dist.get_world_size()
-        rank = dist.get_rank()
+
+        if dist.is_initialized():
+            num_replicas = dist.get_world_size()
+            rank = dist.get_rank()
+
+        else:
+            num_replicas = 1
+            rank = 0
 
         for indices in self.sampler:
             yield indices[rank :: num_replicas]

@@ -2,16 +2,18 @@ import argparse
 import logging
 import os
 import pathlib
+from torch.utils.data import BatchSampler
 from typing import List, NoReturn
 import pytorch_lightning as pl
 
 from casa.data.data_modules import DataModule, Dataset
-from casa.utils import create_logging, read_yaml
+from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, load_pretrained_at_model
 from casa.data.samplers import BalancedSampler
 from casa.data.data_modules import DataModule
 from casa.models.resunet import *
 from casa.losses import get_loss_function
 from casa.models.pl_modules import LitModel
+from casa.data.anchor_segment_detectors import AnchorSegmentDetector
 
 # import pytorch_lightning as pl
 # from pytorch_lightning.plugins import DDPPlugin
@@ -95,9 +97,79 @@ def get_dirs(workspace: str, filename: str, config_yaml: str, devices_num: int) 
 
     return checkpoints_dir, logs_dir, statistics_path
 
+'''
+from torch.utils.data.sampler import Sampler
+from typing import Dict, List, Union, Iterable, Iterator
+class BatchSampler(Sampler[List[int]]):
+    r"""Wraps another sampler to yield a mini-batch of indices.
+    Args:
+        sampler (Sampler or Iterable): Base sampler. Can be any iterable object
+        batch_size (int): Size of mini-batch.
+        drop_last (bool): If ``True``, the sampler will drop the last batch if
+            its size would be less than ``batch_size``
+    Example:
+        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=False))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
+        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=True))
+        [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
+    """
+
+    def __init__(self, sampler: Union[Sampler[int], Iterable[int]], batch_size: int, drop_last: bool) -> None:
+        # Since collections.abc.Iterable does not check for `__getitem__`, which
+        # is one way for an object to be an iterable, we don't do an `isinstance`
+        # check here.
+        if not isinstance(batch_size, int) or isinstance(batch_size, bool) or \
+                batch_size <= 0:
+            raise ValueError("batch_size should be a positive integer value, "
+                             "but got batch_size={}".format(batch_size))
+        if not isinstance(drop_last, bool):
+            raise ValueError("drop_last should be a boolean value, but got "
+                             "drop_last={}".format(drop_last))
+        self.sampler = sampler
+        self.batch_size = batch_size
+        self.drop_last = drop_last
+
+    def __iter__(self) -> Iterator[List[int]]:
+        # Implemented based on the benchmarking in https://github.com/pytorch/pytorch/pull/76951
+        if self.drop_last:
+            print(self.sampler)
+            sampler_iter = iter(self.sampler)
+            while True:
+                print(self.sampler)
+                batch = [next(sampler_iter) for _ in range(self.batch_size)]
+                print(batch)
+                from IPython import embed; embed(using=False); os._exit(0)
+                try:
+                    batch = [next(sampler_iter) for _ in range(self.batch_size)]
+                    yield batch
+                except StopIteration:
+                    break
+        else:
+            batch = [0] * self.batch_size
+            idx_in_batch = 0
+            for idx in self.sampler:
+                batch[idx_in_batch] = idx
+                idx_in_batch += 1
+                if idx_in_batch == self.batch_size:
+                    yield batch
+                    idx_in_batch = 0
+                    batch = [0] * self.batch_size
+            if idx_in_batch > 0:
+                yield batch[:idx_in_batch]
+
+    def __len__(self) -> int:
+        # Can only be called if self.sampler has __len__ implemented
+        # We cannot enforce this condition, so we turn off typechecking for the
+        # implementation below.
+        # Somewhat related: see NOTE [ Lack of Default `__len__` in Python Abstract Base Classes ]
+        if self.drop_last:
+            return len(self.sampler) // self.batch_size  # type: ignore[arg-type]
+        else:
+            return (len(self.sampler) + self.batch_size - 1) // self.batch_size  # type: ignore[arg-type]
+'''
 
 def get_data_module(
-    workspace: str, config_yaml: str, num_workers: int,
+    workspace: str, config_yaml: str, num_workers: int, devices_num: int,
 ) -> DataModule:
     r"""Create data_module. Mini-batch data can be obtained by:
 
@@ -123,7 +195,7 @@ def get_data_module(
     # read configurations
     configs = read_yaml(config_yaml)
     indexes_hdf5_path = os.path.join(workspace, configs['data']['indexes_dict'])
-    batch_size = configs['train']['batch_size']
+    batch_size = configs['train']['batch_size_per_device'] * devices_num
     steps_per_epoch = configs['train']['steps_per_epoch']
 
     # dataset
@@ -136,6 +208,15 @@ def get_data_module(
         steps_per_epoch=steps_per_epoch,
     )
 
+    # Sampler3()
+
+    # from casa.data.samplers import Sampler3
+    # train_sampler = BatchSampler(
+    #     sampler=Sampler3(),
+    #     batch_size=16, 
+    #     drop_last=True,
+    # )
+
     # data module
     data_module = DataModule(
         train_sampler=train_sampler,
@@ -143,8 +224,7 @@ def get_data_module(
         num_workers=num_workers,
     )
 
-    data_module.setup()
-
+    # data_module.setup()
     # for batch_data_dict in data_module.train_dataloader():
     #     # print(batch_data_dict.keys())
     #     # batch_data_dict['audio_name']
@@ -187,6 +267,9 @@ def train(args) -> NoReturn:
     # Read config file.
     configs = read_yaml(config_yaml)
 
+    # sed_checkpoint_path = configs['sed_checkpoint_path']
+    # at_checkpoint_path = configs['at_checkpoint_path']
+
     num_workers = configs['train']['num_workers']
     model_type = configs['model']['model_type']
     input_channels = configs['model']['input_channels']
@@ -194,6 +277,8 @@ def train(args) -> NoReturn:
     condition_size = configs['data']['condition_size']
     loss_type = configs['train']['loss_type']
     learning_rate = float(configs['train']['learning_rate'])
+
+    sample_rate = configs['data']['sample_rate']
 
 
     # sed_checkpoint_path = configs["train"]["sed_checkpoint_path"]
@@ -223,14 +308,24 @@ def train(args) -> NoReturn:
     )
 
     # # Load pretrained sound event detection and audio tagging model.
-    # sed_model = load_pretrained_sed_model(sed_checkpoint_path)
-    # at_model = load_pretrained_at_model(at_checkpoint_path)
+    sed_model = load_pretrained_model(
+        model_name=configs['sound_event_detection']['model_name'],
+        checkpoint_path=configs['sound_event_detection']['checkpoint_path'],
+        freeze=configs['sound_event_detection']['freeze'],
+    )
+
+    at_model = load_pretrained_model(
+        model_name=configs['audio_tagging']['model_name'],
+        checkpoint_path=configs['audio_tagging']['checkpoint_path'],
+        freeze=configs['audio_tagging']['freeze'],
+    )
 
     # data module
     data_module = get_data_module(
         workspace=workspace,
         config_yaml=config_yaml,
         num_workers=num_workers,
+        devices_num=devices_num,
         # distributed=distributed,
     )
 
@@ -277,8 +372,17 @@ def train(args) -> NoReturn:
     #     step, warm_up_steps=warm_up_steps, reduce_lr_steps=reduce_lr_steps
     # )
 
+    anchor_segment_detector = AnchorSegmentDetector(
+        sed_model=sed_model,
+        segment_seconds=10.,
+        frames_per_second=100,
+        sample_rate=sample_rate,
+    )
+
     # pytorch-lightning model
     pl_model = LitModel(
+        sed_model=sed_model,
+        at_model=at_model,
         ss_model=ss_model,
         # batch_data_preprocessor=batch_data_preprocessor,
         loss_function=loss_function,
@@ -305,10 +409,17 @@ def train(args) -> NoReturn:
         callbacks=None,
         fast_dev_run=False,
         max_epochs=-1,
+        use_distributed_sampler=False,
     )
 
     # Fit, evaluate, and save checkpoints.
-    trainer.fit(pl_model, data_module)
+    trainer.fit(
+        model=pl_model, 
+        train_dataloaders=None,
+        val_dataloaders=None,
+        datamodule=data_module,
+        ckpt_path=None,
+    )
 
 
 if __name__ == "__main__":

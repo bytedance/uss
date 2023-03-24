@@ -90,8 +90,8 @@ class StatisticsContainer(object):
                 
         self.statistics_dict = resume_statistics_dict
 
-
-def load_pretrained_sed_model(sed_checkpoint_path):
+'''
+def load_pretrained_sed_model(checkpoint_path, freeze):
     r"""Load pretrained sound event detection model.
 
     Args:
@@ -100,16 +100,20 @@ def load_pretrained_sed_model(sed_checkpoint_path):
     Returns:
         sed_model: nn.Module
     """
-    sed_model = Cnn14_DecisionLevelMax(sample_rate=32000, window_size=1024, 
+    model = Cnn14_DecisionLevelMax(sample_rate=32000, window_size=1024, 
         hop_size=320, mel_bins=64, fmin=50, fmax=14000, classes_num=527, interpolate_mode='nearest')
 
-    sed_checkpoint = torch.load(sed_checkpoint_path, map_location='cpu') 
-    sed_model.load_state_dict(sed_checkpoint['model'])
+    checkpoint = torch.load(checkpoint_path, map_location='cpu') 
+    model.load_state_dict(checkpoint['model'])
 
-    return sed_model
+    if freeze:
+        for param in model.parameters():
+            param.requires_grad = False
+
+    return model
 
 
-def load_pretrained_at_model(at_checkpoint_path):
+def load_pretrained_at_model(checkpoint_path):
     r"""Load pretrained audio tagging model.
 
     Args:
@@ -118,14 +122,39 @@ def load_pretrained_at_model(at_checkpoint_path):
     Returns:
         at_model: nn.Module
     """
-    at_model = Cnn14(sample_rate=32000, window_size=1024, hop_size=320, 
+    model = Cnn14(sample_rate=32000, window_size=1024, hop_size=320, 
         mel_bins=64, fmin=50, fmax=14000, classes_num=527)
     
-    at_checkpoint = torch.load(at_checkpoint_path, map_location='cpu')
-    at_model.load_state_dict(at_checkpoint['model'])
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    model.load_state_dict(checkpoint['model'])
 
-    return at_model
+    if freeze:
+        for param in model.parameters():
+            param.requires_grad = False
 
+    return model
+'''
+
+def load_pretrained_model(model_name, checkpoint_path, freeze):
+    r"""Load pretrained audio tagging model.
+
+    Args:
+        at_checkpoint_path: str
+
+    Returns:
+        at_model: nn.Module
+    """
+    model = eval(model_name)(sample_rate=32000, window_size=1024, hop_size=320, 
+        mel_bins=64, fmin=50, fmax=14000, classes_num=527)
+    
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    model.load_state_dict(checkpoint['model'])
+
+    if freeze:
+        for param in model.parameters():
+            param.requires_grad = False
+
+    return model
 
 def energy(x):
     return torch.mean(x ** 2)
