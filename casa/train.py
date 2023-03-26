@@ -374,16 +374,26 @@ def train(args) -> NoReturn:
 
     anchor_segment_detector = AnchorSegmentDetector(
         sed_model=sed_model,
-        segment_seconds=10.,
+        clip_seconds=10.,
+        segment_seconds=2.,
         frames_per_second=100,
         sample_rate=sample_rate,
     )
+
+    # AvoidConflictInBatch()
+
+    # DataAugmentor()
+
+    # QueryConditionExtractor(
+    #     at_model=at_model,
+    # )
 
     # pytorch-lightning model
     pl_model = LitModel(
         sed_model=sed_model,
         at_model=at_model,
         ss_model=ss_model,
+        anchor_segment_detector=anchor_segment_detector,
         # batch_data_preprocessor=batch_data_preprocessor,
         loss_function=loss_function,
         learning_rate=learning_rate,

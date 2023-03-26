@@ -65,8 +65,10 @@ class LitModel(pl.LightningModule):
         #     soundfile.write(file='_tmp/zz{:03d}.wav'.format(i), data=batch_data_dict['waveform'][i].data.cpu().numpy(), samplerate=32000)
         # from IPython import embed; embed(using=False); os._exit(0)
         print(len(batch_data_dict['audio_name']))
-
-        self.anchor_segment_detector(waveform=batch_data_dict['waveform'])
+        
+        self.anchor_segment_detector(
+            waveforms=batch_data_dict['waveform'],
+            class_ids=batch_data_dict['class_id'])
         asdf
 
         key = list(batch_data_dict.keys())[0]
