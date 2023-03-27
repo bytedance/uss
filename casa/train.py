@@ -14,6 +14,8 @@ from casa.models.resunet import *
 from casa.losses import get_loss_function
 from casa.models.pl_modules import LitModel
 from casa.data.anchor_segment_detectors import AnchorSegmentDetector
+from casa.data.anchor_segment_mixers import AnchorSegmentMixer
+from casa.data.query_condition_extractors import QueryConditionExtractor
 
 # import pytorch_lightning as pl
 # from pytorch_lightning.plugins import DDPPlugin
@@ -380,13 +382,18 @@ def train(args) -> NoReturn:
         sample_rate=sample_rate,
     )
 
+    anchor_segment_mixer = AnchorSegmentMixer(
+        mix_num=2,
+    )
+
     # AvoidConflictInBatch()
 
     # DataAugmentor()
 
-    # QueryConditionExtractor(
-    #     at_model=at_model,
-    # )
+    query_condition_extractor = QueryConditionExtractor(
+        at_model=at_model,
+        condition_type='embedding',
+    )
 
     # pytorch-lightning model
     pl_model = LitModel(
@@ -394,6 +401,8 @@ def train(args) -> NoReturn:
         at_model=at_model,
         ss_model=ss_model,
         anchor_segment_detector=anchor_segment_detector,
+        anchor_segment_mixer=anchor_segment_mixer,
+        query_condition_extractor=query_condition_extractor,
         # batch_data_preprocessor=batch_data_preprocessor,
         loss_function=loss_function,
         learning_rate=learning_rate,

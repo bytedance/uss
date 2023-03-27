@@ -14,7 +14,8 @@ class LitModel(pl.LightningModule):
         at_model: nn.Module,
         ss_model: nn.Module,
         anchor_segment_detector,
-        # batch_data_preprocessor,
+        anchor_segment_mixer,
+        query_condition_extractor,
         loss_function,
         learning_rate: float,
         # lr_lambda,
@@ -36,6 +37,8 @@ class LitModel(pl.LightningModule):
         self.at_model = at_model
         self.ss_model = ss_model
         self.anchor_segment_detector = anchor_segment_detector
+        self.anchor_segment_mixer = anchor_segment_mixer
+        self.query_condition_extractor = query_condition_extractor
         self.loss_function = loss_function
         self.learning_rate = learning_rate
         # self.lr_lambda = lr_lambda
@@ -65,36 +68,24 @@ class LitModel(pl.LightningModule):
         #     soundfile.write(file='_tmp/zz{:03d}.wav'.format(i), data=batch_data_dict['waveform'][i].data.cpu().numpy(), samplerate=32000)
         # from IPython import embed; embed(using=False); os._exit(0)
         print(len(batch_data_dict['audio_name']))
-        
-        self.anchor_segment_detector(
+
+        segments_dict = self.anchor_segment_detector(
             waveforms=batch_data_dict['waveform'],
             class_ids=batch_data_dict['class_id'])
-        asdf
-
-        key = list(batch_data_dict.keys())[0]
-        batch_size = batch_data_dict[key].shape[0]
-        # batch_size = batch_data_dict['waveform'].shape[0]
         
-        # segment_data_dict = self.anchor_segment_detector.detect_anchor_segments(
-        #     batch_data_dict, full_info=False)
-        # E.g., {
-        #     'mixture': (batch_size, 1, segment_samples),
-        #     'source': (batch_size, 1, segment_samples),
-        #     'condition': (batch_size, classes_num),
-        # }
+        data_dict = self.anchor_segment_mixer(
+            segments_dict=segments_dict,
+        )
 
-        input_dict, target_dict = self.batch_data_preprocessor(batch_data_dict)
+        data_dict = self.anchor_segment_mixer(
+            segments_dict=segments_dict,
+        )
 
-        # mixtures = segment_data_dict['mixture']
-        mixtures = input_dict['waveform']
-        # mixtures = input_dict['waveform']
-        # (batch_size, 1, segment_samples)
-        
-        conditions = input_dict['condition']
-        # (batch_size, classes_num)
+        condition = self.query_condition_extractor(
+            segment=data_dict['segment'],
+        )
 
-        sources = target_dict['source']
-        # (batch_size, 1, segment_samples)
+        from IPython import embed; embed(using=False); os._exit(0)
 
         self.ss_model.train()
         # outputs = self.ss_model(mixtures, conditions)['waveform']

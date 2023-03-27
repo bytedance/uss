@@ -143,12 +143,16 @@ class AnchorSegmentDetector(nn.Module):
             # anchor segments.
             anchor_segment_scores = self.anchor_segment_scorer(prob_array)
 
-            if True:
+            if False:
                 import soundfile
-                soundfile.write(file='_zz.wav', data=waveforms[n].data.cpu().numpy(), samplerate=32000)
+                soundfile.write(file='_zz{}.wav'.format(n), data=waveforms[n].data.cpu().numpy(), samplerate=32000)
                 import matplotlib.pyplot as plt
+                from casa.config import IX_TO_LB
+                plt.figure()
                 plt.plot(anchor_segment_scores.data.cpu().numpy())
-                plt.savefig('_zz.pdf')
+                plt.title(IX_TO_LB[class_id])
+                plt.ylim(0, 1)
+                plt.savefig('_zz{}.pdf'.format(n))
 
             # Find out the frame with the highest probability. This frames is
             # the centre frame of an anchor segment.
@@ -165,7 +169,6 @@ class AnchorSegmentDetector(nn.Module):
             segments.append(segment)
             bgn_samples.append(bgn_sample)
             end_samples.append(end_sample)
-            print(bgn_sample, end_sample, end_sample - bgn_sample, segment.shape)
 
             # if full_info:
             #     bgn_samples.append(bgn_sample)
@@ -189,13 +192,11 @@ class AnchorSegmentDetector(nn.Module):
         segments = torch.stack(segments, dim=0)
         # (batch_size, segment_samples)
 
-        # for i in range(16):
-        #     import soundfile
-        #     soundfile.write(file='_tmp/zz{:03d}_{}.wav'.format(i, IX_TO_LB[batch_data_dict['class_id'][i]]), data=segments[i].data.cpu().numpy(), samplerate=32000)
-        from IPython import embed; embed(using=False); os._exit(0)
+        segments_dict = {
+            'waveform': segments,
+        }
 
-
-        return anchor_segment_dict
+        return segments_dict
 
     def get_condition(self, at_model, segment, class_id, target, condition_type):
 
