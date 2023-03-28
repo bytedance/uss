@@ -9,9 +9,9 @@ class AnchorSegmentMixer(nn.Module):
 
         self.mix_num = mix_num
 
-    def __call__(self, segments_dict):
+    def __call__(self, waveforms):
         
-        waveforms = segments_dict['waveform']
+        # waveforms = segments_dict['waveform']
 
         batch_size = waveforms.shape[0]
 
@@ -36,8 +36,9 @@ class AnchorSegmentMixer(nn.Module):
         for key in data_dict.keys():
             data_dict[key] = torch.stack(data_dict[key], dim=0)
 
-        return data_dict
-        
+        # return data_dict
+        return data_dict['mixture'], data_dict['segment']
+
 
 def rescale_to_match_energy(segment1, segment2):
 

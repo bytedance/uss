@@ -22,8 +22,8 @@ data:
         random_scale:
             lower_db: 0
             higher_db: 0
-    condition_type: 'one-hot'
-    condition_size: 527
+    condition_type: 'embedding'
+    condition_size: 2048
 
 model:
     model_type: ResUNet30

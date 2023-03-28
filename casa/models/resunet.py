@@ -1,7 +1,9 @@
 # import pytorch_lightning as pl
+import numpy as np
 from typing import Dict, List, NoReturn, Tuple
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torchlibrosa.stft import STFT, ISTFT, magphase
 
 from casa.models.base import Base, init_layer, init_bn, act
@@ -14,75 +16,64 @@ class FiLM(nn.Module):
         self.condition_size = condition_size
 
         self.cnt = 0
-        self.film_modules = self.create_film_modules(film_meta)
+        self.modules = self.create_film_modules(film_meta)
 
-    @staticmethod
-    def get_film_meta(module):
+    def create_film_modules(self, meta):
 
-        film_meta = {}
+        modules = {}
 
-        for name, _ in module.named_children():
+        for key, value in meta.items():
 
-            sub_module = getattr(module, name)
-            tmp = FiLM.get_film_meta(sub_module)
-            if len(tmp) > 0:
-                film_meta[name] = tmp
+            if isinstance(value, int):
 
-        if hasattr(module, 'has_film'):\
+                num_features = value
+                layer = nn.Linear(self.condition_size, num_features)
+                init_layer(layer)
 
-            if module.has_film:
-                film_meta['beta1'] = module.bn1.num_features
-                film_meta['beta2'] = module.bn2.num_features
-            else:
-                film_meta['beta1'] = 0
-                film_meta['beta2'] = 0
-            
-        return film_meta
+                self.add_module(name='film_{}'.format(self.cnt), module=layer)
+                modules[key] = layer
 
-    def create_film_modules(self, film_meta):
+                self.cnt += 1
 
-        film_modules = {}
+            elif isinstance(value, dict):
 
-        for name in film_meta.keys():
+                modules[key] = self.create_film_modules(value)
 
-            if isinstance(film_meta[name], dict):
+        return modules
 
-                film_modules[name] = self.create_film_modules(film_meta[name])
+    def calculate_film_data(self, conditions, modules):
 
-            else:
-                num_features = film_meta[name]
-                if num_features > 0:
-                    layer = nn.Linear(self.condition_size, num_features)
-                    init_layer(layer)
-                    film_modules[name] = layer
-                    self.add_module(name='film_{}'.format(self.cnt), module=layer)
-                    self.cnt += 1
-                else:
-                    film_modules[name] = 0
+        film_data = {}
 
-        return film_modules
+        for key, module in modules.items():
 
-    def calculate_film_dict(self, condition, film_modules):
+            if isinstance(module, nn.Module):
+                film_data[key] = module(conditions)[:, :, None, None]
 
-        film_dict = {}
+            elif isinstance(module, dict):
+                film_data[key] = self.calculate_film_data(conditions, module)
 
-        for name in film_modules:
+        # for name in film_modules:
 
-            if isinstance(film_modules[name], dict):
+        #     if isinstance(film_modules[name], dict):
 
-                film_dict[name] = self.calculate_film_dict(condition, film_modules[name])
+        #         film_dict[name] = self.calculate_film_dict(conditions, film_modules[name])
 
-            else:
-                if film_modules[name]:
-                    film_dict[name] = film_modules[name](condition)[:, :, None, None]
-                else:
-                    film_dict[name] = 0
+        #     else:
+        #         if film_modules[name]:
+        #             film_dict[name] = film_modules[name](conditions)[:, :, None, None]
+        #         else:
+        #             film_dict[name] = 0
 
-        return film_dict
+        return film_data
 
-    def forward(self, condition):
+    def forward(self, conditions):
         
-        film_dict = self.calculate_film_dict(condition, self.film_modules)
+        film_dict = self.calculate_film_data(
+            conditions=conditions, 
+            modules=self.modules,
+        )
+
         return film_dict
 
 
@@ -525,7 +516,7 @@ class ResUNet30_Base(nn.Module, Base):
         return waveform
 
 
-    def forward(self, waveform, film_dict):
+    def forward(self, mixtures, film_dict):
         """
         Args:
           input: (batch_size, segment_samples, channels_num)
@@ -535,8 +526,10 @@ class ResUNet30_Base(nn.Module, Base):
             'wav': (batch_size, segment_samples, channels_num),
             'sp': (batch_size, channels_num, time_steps, freq_bins)}
         """
+
+        mixtures = mixtures[:, None, :]
         
-        mag, cos_in, sin_in = self.wav_to_spectrogram_phase(waveform)
+        mag, cos_in, sin_in = self.wav_to_spectrogram_phase(mixtures)
         x = mag
 
         # Batch normalization
@@ -579,7 +572,7 @@ class ResUNet30_Base(nn.Module, Base):
         x = F.pad(x, pad=(0, 1))
         x = x[:, :, 0:origin_len, :]
 
-        audio_length = waveform.shape[2]
+        audio_length = mixtures.shape[2]
 
         # Recover each subband spectrograms to subband waveforms. Then synthesis
         # the subband waveforms to a waveform.
@@ -601,23 +594,60 @@ class ResUNet30_Base(nn.Module, Base):
         return output_dict
 
 
+def get_film_meta(module):
+
+    film_meta = {}
+
+    if hasattr(module, 'has_film'):\
+
+        if module.has_film:
+            film_meta['beta1'] = module.bn1.num_features
+            film_meta['beta2'] = module.bn2.num_features
+        else:
+            film_meta['beta1'] = 0
+            film_meta['beta2'] = 0
+
+    for child_name, child_module in module.named_children():
+
+        child_meta = get_film_meta(child_module)
+
+        if len(child_meta) > 0:
+            film_meta[child_name] = child_meta
+    
+    return film_meta
+
 
 class ResUNet30(nn.Module):
     def __init__(self, input_channels, output_channels, condition_size):
         super(ResUNet30, self).__init__()
 
-        self.base = ResUNet30_Base(input_channels=input_channels, output_channels=output_channels)
-        film_meta = FiLM.get_film_meta(self.base)
-        # from IPython import embed; embed(using=False); os._exit(0)
+        self.base = ResUNet30_Base(
+            input_channels=input_channels, 
+            output_channels=output_channels,
+        )
+        
+        self.film_meta = get_film_meta(
+            module=self.base,
+        )
+        
+        self.film = FiLM(
+            film_meta=self.film_meta, 
+            condition_size=condition_size
+        )
 
-        self.film = FiLM(film_meta=film_meta, condition_size=condition_size)
 
     def forward(self, input_dict):
 
-        waveform = input_dict['waveform']
-        condition = input_dict['condition']
+        mixtures = input_dict['mixture']
+        conditions = input_dict['condition']
 
-        film_dict = self.film(condition)
-        output_dict = self.base(waveform, film_dict)
+        film_dict = self.film(
+            conditions=conditions,
+        )
+
+        output_dict = self.base(
+            mixtures=mixtures, 
+            film_dict=film_dict,
+        )
 
         return output_dict

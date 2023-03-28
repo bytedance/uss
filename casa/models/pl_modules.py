@@ -62,35 +62,33 @@ class LitModel(pl.LightningModule):
         Returns:
             loss: float, loss function of this mini-batch
         """
-        
-        # for i in range(16):
-        #     import soundfile
-        #     soundfile.write(file='_tmp/zz{:03d}.wav'.format(i), data=batch_data_dict['waveform'][i].data.cpu().numpy(), samplerate=32000)
-        # from IPython import embed; embed(using=False); os._exit(0)
-        print(len(batch_data_dict['audio_name']))
 
         segments_dict = self.anchor_segment_detector(
             waveforms=batch_data_dict['waveform'],
             class_ids=batch_data_dict['class_id'])
         
-        data_dict = self.anchor_segment_mixer(
-            segments_dict=segments_dict,
+        mixtures, segments = self.anchor_segment_mixer(
+            waveforms=segments_dict['waveform'],
         )
 
-        data_dict = self.anchor_segment_mixer(
-            segments_dict=segments_dict,
+        conditions = self.query_condition_extractor(
+            segments=segments,
         )
 
-        condition = self.query_condition_extractor(
-            segment=data_dict['segment'],
-        )
+        input_dict = {
+            'mixture': mixtures,
+            'condition': conditions,
+        }
 
-        from IPython import embed; embed(using=False); os._exit(0)
+        target_dict = {
+            'segment': segments
+        }
 
         self.ss_model.train()
-        # outputs = self.ss_model(mixtures, conditions)['waveform']
         outputs = self.ss_model(input_dict)['waveform']
         # (batch_size, 1, segment_samples)
+
+        from IPython import embed; embed(using=False); os._exit(0)
 
         # Calculate loss.
         loss = self.loss_function(outputs, sources)

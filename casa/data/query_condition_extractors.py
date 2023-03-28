@@ -13,11 +13,11 @@ class QueryConditionExtractor(nn.Module):
         self.at_model = at_model
         self.condition_type = condition_type
 
-    def __call__(self, segment):
+    def __call__(self, segments):
 
         with torch.no_grad():
             self.at_model.eval()
-            condition = self.at_model(segment)[self.condition_type]
+            conditions = self.at_model(segments)[self.condition_type]
 
-        return condition
+        return conditions
 

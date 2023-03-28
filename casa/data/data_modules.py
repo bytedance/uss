@@ -133,6 +133,7 @@ class Dataset:
             audio_name = hf['audio_name'][index_in_hdf5].decode()
 
             waveform = int16_to_float32(hf['waveform'][index_in_hdf5])
+            waveform = waveform
             # (clip_samples,)
 
             target = hf['target'][index_in_hdf5].astype(np.float32)

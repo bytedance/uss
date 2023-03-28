@@ -279,6 +279,7 @@ def train(args) -> NoReturn:
     condition_size = configs['data']['condition_size']
     loss_type = configs['train']['loss_type']
     learning_rate = float(configs['train']['learning_rate'])
+    condition_type = configs['data']['condition_type']
 
     sample_rate = configs['data']['sample_rate']
 
