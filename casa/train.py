@@ -4,43 +4,21 @@ import os
 import pathlib
 from torch.utils.data import BatchSampler
 from typing import List, NoReturn
-import pytorch_lightning as pl
+import lightning.pytorch as pl
 
-from casa.data.data_modules import DataModule, Dataset
+from casa.data.datamodules import DataModule
+from casa.data.datasets import Dataset
 from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, load_pretrained_at_model
 from casa.data.samplers import BalancedSampler
-from casa.data.data_modules import DataModule
+from casa.data.datamodules import DataModule
 from casa.models.resunet import *
 from casa.losses import get_loss_function
-from casa.models.pl_modules import LitModel
+from casa.models.pl_modules import LitSeparation
 from casa.data.anchor_segment_detectors import AnchorSegmentDetector
 from casa.data.anchor_segment_mixers import AnchorSegmentMixer
 from casa.data.query_condition_extractors import QueryConditionExtractor
-
-# import pytorch_lightning as pl
-# from pytorch_lightning.plugins import DDPPlugin
-
-# from audioset_source_separation.callbacks.audioset_callbacks import \
-#     get_audioset_callbacks
-# from audioset_source_separation.config import CLIP_SAMPLES
-# from audioset_source_separation.data.batch_data_preprocessors import \
-#     AudioSetBatchDataPreprocessor
-# from audioset_source_separation.data.data_modules import DataModule, Dataset
-# from audioset_source_separation.data.samplers import BalancedSampler
-# from audioset_source_separation.losses import get_loss_function
-# # from audioset_source_separation.models.cond_resunet_subbandtime import \
-# #     CondResUNetSubbandTime
-# # from audioset_source_separation.models.cond_unet import CondUNet
-# # from audioset_source_separation.models.cond_unet_subbandtime import \
-# #     CondUNetSubbandTime
-# from audioset_source_separation.models.resunet import ResUNet30
-# from audioset_source_separation.models.lightning_modules import \
-#     LitSourceSeparation
-# from audioset_source_separation.optimizers.lr_schedulers import get_lr_lambda
-# from audioset_source_separation.utils import (create_logging,
-#                                               load_pretrained_at_model,
-#                                               load_pretrained_sed_model,
-#                                               read_yaml)
+from casa.callbacks.base import CheckpointEveryNSteps
+from casa.callbacks.evaluate import Evaluate
 
 
 def get_dirs(workspace: str, filename: str, config_yaml: str, devices_num: int) -> List[str]:
@@ -98,77 +76,7 @@ def get_dirs(workspace: str, filename: str, config_yaml: str, devices_num: int) 
     os.makedirs(os.path.dirname(statistics_path), exist_ok=True)
 
     return checkpoints_dir, logs_dir, statistics_path
-
-'''
-from torch.utils.data.sampler import Sampler
-from typing import Dict, List, Union, Iterable, Iterator
-class BatchSampler(Sampler[List[int]]):
-    r"""Wraps another sampler to yield a mini-batch of indices.
-    Args:
-        sampler (Sampler or Iterable): Base sampler. Can be any iterable object
-        batch_size (int): Size of mini-batch.
-        drop_last (bool): If ``True``, the sampler will drop the last batch if
-            its size would be less than ``batch_size``
-    Example:
-        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=False))
-        [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9]]
-        >>> list(BatchSampler(SequentialSampler(range(10)), batch_size=3, drop_last=True))
-        [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
-    """
-
-    def __init__(self, sampler: Union[Sampler[int], Iterable[int]], batch_size: int, drop_last: bool) -> None:
-        # Since collections.abc.Iterable does not check for `__getitem__`, which
-        # is one way for an object to be an iterable, we don't do an `isinstance`
-        # check here.
-        if not isinstance(batch_size, int) or isinstance(batch_size, bool) or \
-                batch_size <= 0:
-            raise ValueError("batch_size should be a positive integer value, "
-                             "but got batch_size={}".format(batch_size))
-        if not isinstance(drop_last, bool):
-            raise ValueError("drop_last should be a boolean value, but got "
-                             "drop_last={}".format(drop_last))
-        self.sampler = sampler
-        self.batch_size = batch_size
-        self.drop_last = drop_last
-
-    def __iter__(self) -> Iterator[List[int]]:
-        # Implemented based on the benchmarking in https://github.com/pytorch/pytorch/pull/76951
-        if self.drop_last:
-            print(self.sampler)
-            sampler_iter = iter(self.sampler)
-            while True:
-                print(self.sampler)
-                batch = [next(sampler_iter) for _ in range(self.batch_size)]
-                print(batch)
-                from IPython import embed; embed(using=False); os._exit(0)
-                try:
-                    batch = [next(sampler_iter) for _ in range(self.batch_size)]
-                    yield batch
-                except StopIteration:
-                    break
-        else:
-            batch = [0] * self.batch_size
-            idx_in_batch = 0
-            for idx in self.sampler:
-                batch[idx_in_batch] = idx
-                idx_in_batch += 1
-                if idx_in_batch == self.batch_size:
-                    yield batch
-                    idx_in_batch = 0
-                    batch = [0] * self.batch_size
-            if idx_in_batch > 0:
-                yield batch[:idx_in_batch]
-
-    def __len__(self) -> int:
-        # Can only be called if self.sampler has __len__ implemented
-        # We cannot enforce this condition, so we turn off typechecking for the
-        # implementation below.
-        # Somewhat related: see NOTE [ Lack of Default `__len__` in Python Abstract Base Classes ]
-        if self.drop_last:
-            return len(self.sampler) // self.batch_size  # type: ignore[arg-type]
-        else:
-            return (len(self.sampler) + self.batch_size - 1) // self.batch_size  # type: ignore[arg-type]
-'''
+ 
 
 def get_data_module(
     workspace: str, config_yaml: str, num_workers: int, devices_num: int,
@@ -201,7 +109,9 @@ def get_data_module(
     steps_per_epoch = configs['train']['steps_per_epoch']
 
     # dataset
-    train_dataset = Dataset()
+    train_dataset = Dataset(
+        steps_per_epoch=steps_per_epoch,
+    )
 
     # sampler
     train_sampler = BalancedSampler(
@@ -209,15 +119,6 @@ def get_data_module(
         batch_size=batch_size,
         steps_per_epoch=steps_per_epoch,
     )
-
-    # Sampler3()
-
-    # from casa.data.samplers import Sampler3
-    # train_sampler = BatchSampler(
-    #     sampler=Sampler3(),
-    #     batch_size=16, 
-    #     drop_last=True,
-    # )
 
     # data module
     data_module = DataModule(
@@ -230,20 +131,20 @@ def get_data_module(
     # for batch_data_dict in data_module.train_dataloader():
     #     # print(batch_data_dict.keys())
     #     # batch_data_dict['audio_name']
-    #     from IPython import embed; embed(using=False); os._exit(0)
+    # from IPython import embed; embed(using=False); os._exit(0)
 
     return data_module
 
-def get_devices_num():
+# def get_devices_num():
     
-    devices_str = os.getenv("CUDA_VISIBLE_DEVICES")
+#     devices_str = os.getenv("CUDA_VISIBLE_DEVICES")
 
-    if not devices_str:
-        raise Exception("Must set the CUDA_VISIBLE_DEVICES flag.")
+#     if not devices_str:
+#         raise Exception("Must set the CUDA_VISIBLE_DEVICES flag.")
 
-    devices_num = len(devices_str.split(','))
+#     devices_num = len(devices_str.split(','))
 
-    return devices_num
+#     return devices_num
 
 
 def train(args) -> NoReturn:
@@ -260,8 +161,7 @@ def train(args) -> NoReturn:
     config_yaml = args.config_yaml
     filename = args.filename
 
-    devices_num = get_devices_num()
-    print(devices_num)
+    devices_num = torch.cuda.device_count()
 
     # distributed = True if gpus > 1 else False
     # evaluate_device = "cuda"  # Evaluate on a single GPU card.
@@ -282,6 +182,10 @@ def train(args) -> NoReturn:
     condition_type = configs['data']['condition_type']
 
     sample_rate = configs['data']['sample_rate']
+
+    save_step_frequency = configs['train']['save_step_frequency']
+
+    # steps_per_epoch = configs["train"]["steps_per_epoch"]
 
 
     # sed_checkpoint_path = configs["train"]["sed_checkpoint_path"]
@@ -331,18 +235,6 @@ def train(args) -> NoReturn:
         devices_num=devices_num,
         # distributed=distributed,
     )
-
-    # # data preprocessor
-    # batch_data_preprocessor = AudioSetBatchDataPreprocessor(
-    #     augmentation=augmentation,
-    #     sed_model=sed_model,
-    #     at_model=at_model,
-    #     segment_seconds=segment_seconds,
-    #     frames_per_second=frames_per_second,
-    #     sample_rate=sample_rate,
-    #     clip_samples=clip_samples,
-    #     condition_type=condition_type,
-    # )
     
     # model
     Model = eval(model_type)
@@ -397,39 +289,52 @@ def train(args) -> NoReturn:
     )
 
     # pytorch-lightning model
-    pl_model = LitModel(
-        sed_model=sed_model,
-        at_model=at_model,
+    pl_model = LitSeparation(
         ss_model=ss_model,
         anchor_segment_detector=anchor_segment_detector,
         anchor_segment_mixer=anchor_segment_mixer,
         query_condition_extractor=query_condition_extractor,
-        # batch_data_preprocessor=batch_data_preprocessor,
         loss_function=loss_function,
         learning_rate=learning_rate,
-        # lr_lambda=lr_lambda,
+        lr_lambda=None,
     )
 
-    # trainer
-    # trainer = pl.Trainer(
-    #     checkpoint_callback=False,
-    #     gpus=gpus,
-    #     callbacks=callbacks,
-    #     max_steps=early_stop_steps,
-    #     accelerator="ddp",
-    #     sync_batchnorm=True,
-    #     precision=precision,
-    #     profiler="simple",
-    #     replace_sampler_ddp=False,
-    #     plugins=[DDPPlugin(find_unused_parameters=True)],
-    # )
+    from lightning.pytorch.callbacks import ModelCheckpoint
+    checkpoint_callback = ModelCheckpoint(
+        dirpath="./tmp", 
+        save_top_k=3, monitor="val_loss"
+    )
+
+    checkpoint_every_n_steps = CheckpointEveryNSteps(save_step_frequency=save_step_frequency)
+
+    from casa.callbacks.evaluate import Eva
+    evaluator = Eva(pl_model=pl_model)
+
+    # aa()
+
+    evaluate_callback = Evaluate(
+        evaluator=evaluator,
+        save_step_frequency=save_step_frequency,
+    )
+
+    # callbacks = [checkpoint_callback, checkpoint_callback2]
+    # callbacks = []
+    # callbacks = [checkpoint_every_n_steps, evaluate_callback]
+    callbacks = [checkpoint_every_n_steps, evaluate_callback]
+
     trainer = pl.Trainer(
+        accelerator='auto',
         devices='auto',
         num_nodes=1,
-        callbacks=None,
+        precision="32-true",
+        logger=None,
+        callbacks=callbacks,
         fast_dev_run=False,
         max_epochs=-1,
+        log_every_n_steps=50,
         use_distributed_sampler=False,
+        sync_batchnorm=True,
+        num_sanity_val_steps=2,
     )
 
     # Fit, evaluate, and save checkpoints.
@@ -440,6 +345,10 @@ def train(args) -> NoReturn:
         datamodule=data_module,
         ckpt_path=None,
     )
+
+
+
+
 
 
 if __name__ == "__main__":

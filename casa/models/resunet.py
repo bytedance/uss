@@ -15,57 +15,48 @@ class FiLM(nn.Module):
 
         self.condition_size = condition_size
 
-        self.cnt = 0
-        self.modules = self.create_film_modules(film_meta)
-
-    def create_film_modules(self, meta):
+        self.modules, _ = self.create_film_modules(
+            film_meta=film_meta, 
+            ancestor_names=[],
+        )
+        
+    def create_film_modules(self, film_meta, ancestor_names):
 
         modules = {}
-
-        for key, value in meta.items():
+       
+        # Pre-order traversal of modules
+        for module_name, value in film_meta.items():
 
             if isinstance(value, int):
 
-                num_features = value
-                layer = nn.Linear(self.condition_size, num_features)
-                init_layer(layer)
+                ancestor_names.append(module_name)
+                unique_module_name = ','.join(ancestor_names)
 
-                self.add_module(name='film_{}'.format(self.cnt), module=layer)
-                modules[key] = layer
-
-                self.cnt += 1
+                modules[module_name] = self.add_film_layer_to_module(
+                    num_features=value, 
+                    unique_module_name=unique_module_name,
+                )
 
             elif isinstance(value, dict):
 
-                modules[key] = self.create_film_modules(value)
+                ancestor_names.append(module_name)
+                
+                modules[module_name], _ = self.create_film_modules(
+                    film_meta=value, 
+                    ancestor_names=ancestor_names,
+                )
 
-        return modules
+            ancestor_names.pop()
 
-    def calculate_film_data(self, conditions, modules):
+        return modules, ancestor_names
 
-        film_data = {}
+    def add_film_layer_to_module(self, num_features, unique_module_name):
 
-        for key, module in modules.items():
+        layer = nn.Linear(self.condition_size, num_features)
+        init_layer(layer)
+        self.add_module(name=unique_module_name, module=layer)
 
-            if isinstance(module, nn.Module):
-                film_data[key] = module(conditions)[:, :, None, None]
-
-            elif isinstance(module, dict):
-                film_data[key] = self.calculate_film_data(conditions, module)
-
-        # for name in film_modules:
-
-        #     if isinstance(film_modules[name], dict):
-
-        #         film_dict[name] = self.calculate_film_dict(conditions, film_modules[name])
-
-        #     else:
-        #         if film_modules[name]:
-        #             film_dict[name] = film_modules[name](conditions)[:, :, None, None]
-        #         else:
-        #             film_dict[name] = 0
-
-        return film_data
+        return layer
 
     def forward(self, conditions):
         
@@ -76,6 +67,20 @@ class FiLM(nn.Module):
 
         return film_dict
 
+    def calculate_film_data(self, conditions, modules):
+
+        film_data = {}
+
+        # Pre-order traversal of modules
+        for module_name, module in modules.items():
+
+            if isinstance(module, nn.Module):
+                film_data[module_name] = module(conditions)[:, :, None, None]
+
+            elif isinstance(module, dict):
+                film_data[module_name] = self.calculate_film_data(conditions, module)
+
+        return film_data
 
 
 class ConvBlockRes(nn.Module):
@@ -527,8 +532,6 @@ class ResUNet30_Base(nn.Module, Base):
             'sp': (batch_size, channels_num, time_steps, freq_bins)}
         """
 
-        mixtures = mixtures[:, None, :]
-        
         mag, cos_in, sin_in = self.wav_to_spectrogram_phase(mixtures)
         x = mag
 
