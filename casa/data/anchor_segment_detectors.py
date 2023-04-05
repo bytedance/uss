@@ -192,8 +192,14 @@ class AnchorSegmentDetector(nn.Module):
         segments = torch.stack(segments, dim=0)
         # (batch_size, segment_samples)
 
+        bgn_samples = torch.stack(bgn_samples, dim=0)
+        end_samples = torch.stack(end_samples, dim=0)
+
         segments_dict = {
             'waveform': segments,
+            'class_id': class_ids,
+            'bgn_sample': bgn_samples,
+            'end_sample': end_samples,
         }
 
         return segments_dict

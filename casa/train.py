@@ -6,7 +6,6 @@ from torch.utils.data import BatchSampler
 from typing import List, NoReturn
 import lightning.pytorch as pl
 
-from casa.data.datamodules import DataModule
 from casa.data.datasets import Dataset
 from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, load_pretrained_at_model
 from casa.data.samplers import BalancedSampler
