@@ -334,6 +334,7 @@ def train(args) -> NoReturn:
         use_distributed_sampler=False,
         sync_batchnorm=True,
         num_sanity_val_steps=2,
+        default_root_dir="/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_0/checkpoints",
     )
 
     # Fit, evaluate, and save checkpoints.

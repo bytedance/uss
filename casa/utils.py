@@ -187,7 +187,7 @@ def calculate_sdr(ref, est):
 
 def calculate_sdr(ref, est):
     
-    eps = 1e-8
+    eps = 1e-10
 
     noise = est - ref
     sdr = 10. * np.log10(np.sum(ref ** 2) / (np.sum(noise ** 2) + eps))

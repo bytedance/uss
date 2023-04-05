@@ -30,7 +30,7 @@ class FiLM(nn.Module):
             if isinstance(value, int):
 
                 ancestor_names.append(module_name)
-                unique_module_name = ','.join(ancestor_names)
+                unique_module_name = '->'.join(ancestor_names)
 
                 modules[module_name] = self.add_film_layer_to_module(
                     num_features=value, 

@@ -228,6 +228,17 @@ class LitSeparation(pl.LightningModule):
         return [optimizer], [scheduler]
     '''
 
+    '''
+    def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
+
+        del checkpoint['optimizer_states']
+
+        for key in checkpoint['state_dict'].keys():
+            if "anchor_segment_detector" in key:
+                del checkpoint['state_dict'][key]
+
+        # from IPython import embed; embed(using=False); os._exit(0)
+    '''
 
 def get_model_class(model_type):
     if model_type == 'CondUNet':
