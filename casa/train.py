@@ -16,8 +16,10 @@ from casa.models.pl_modules import LitSeparation
 from casa.data.anchor_segment_detectors import AnchorSegmentDetector
 from casa.data.anchor_segment_mixers import AnchorSegmentMixer
 from casa.data.query_condition_extractors import QueryConditionExtractor
+# from lightning.pytorch.callbacks import ModelCheckpoint
 from casa.callbacks.base import CheckpointEveryNSteps
-from casa.callbacks.evaluate import Evaluate
+from casa.callbacks.evaluate import EvaluateCallback
+# from casa.evaluate import AudiosetEvaluator
 
 
 def get_dirs(workspace: str, filename: str, config_yaml: str, devices_num: int) -> List[str]:
@@ -183,6 +185,14 @@ def train(args) -> NoReturn:
     sample_rate = configs['data']['sample_rate']
 
     save_step_frequency = configs['train']['save_step_frequency']
+    evaluate_step_frequency = configs['train']['evaluate_step_frequency']
+    
+
+    balanced_train_eval_dir = os.path.join(workspace, configs["evaluate"]["balanced_train_eval_dir"])
+    test_eval_dir = os.path.join(workspace, configs["evaluate"]["test_eval_dir"])
+    max_eval_per_class = configs["evaluate"]["max_eval_per_class"]
+
+    classes_num = 527
 
     # steps_per_epoch = configs["train"]["steps_per_epoch"]
 
@@ -248,19 +258,6 @@ def train(args) -> NoReturn:
     # # loss function
     loss_function = get_loss_function(loss_type)
 
-    # # callbacks
-    # callbacks = get_audioset_callbacks(
-    #     config_yaml=config_yaml,
-    #     workspace=workspace,
-    #     checkpoints_dir=checkpoints_dir,
-    #     statistics_path=statistics_path,
-    #     logger=logger,
-    #     ss_model=ss_model,
-    #     at_model=at_model,
-    #     evaluate_device=evaluate_device,
-    # )
-    # # callbacks = []
-
     # learning rate reduce function
     # lr_lambda = lambda step: get_lr_lambda(
     #     step, warm_up_steps=warm_up_steps, reduce_lr_steps=reduce_lr_steps
@@ -278,10 +275,6 @@ def train(args) -> NoReturn:
         mix_num=2,
     )
 
-    # AvoidConflictInBatch()
-
-    # DataAugmentor()
-
     query_condition_extractor = QueryConditionExtractor(
         at_model=at_model,
         condition_type='embedding',
@@ -298,27 +291,25 @@ def train(args) -> NoReturn:
         lr_lambda=None,
     )
 
-    from lightning.pytorch.callbacks import ModelCheckpoint
-    checkpoint_callback = ModelCheckpoint(
-        dirpath="./tmp", 
-        save_top_k=3, monitor="val_loss"
-    )
+    
+    # checkpoint_callback = ModelCheckpoint(
+    #     dirpath="./tmp", 
+    #     save_top_k=3, monitor="val_loss"
+    # )
 
     checkpoint_every_n_steps = CheckpointEveryNSteps(save_step_frequency=save_step_frequency)
 
-    from casa.callbacks.evaluate import Eva
-    evaluator = Eva(pl_model=pl_model)
-
-    # aa()
-
-    evaluate_callback = Evaluate(
-        evaluator=evaluator,
-        save_step_frequency=save_step_frequency,
+    evaluate_callback = EvaluateCallback(
+        pl_model=pl_model,
+        balanced_train_eval_dir=balanced_train_eval_dir,
+        test_eval_dir=test_eval_dir,
+        classes_num=classes_num,
+        max_eval_per_class=max_eval_per_class,
+        evaluate_step_frequency=evaluate_step_frequency,
     )
 
     # callbacks = [checkpoint_callback, checkpoint_callback2]
     # callbacks = []
-    # callbacks = [checkpoint_every_n_steps, evaluate_callback]
     callbacks = [checkpoint_every_n_steps, evaluate_callback]
 
     trainer = pl.Trainer(
@@ -334,7 +325,7 @@ def train(args) -> NoReturn:
         use_distributed_sampler=False,
         sync_batchnorm=True,
         num_sanity_val_steps=2,
-        default_root_dir="/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_0/checkpoints",
+        # default_root_dir="/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_0/checkpoints",
     )
 
     # Fit, evaluate, and save checkpoints.

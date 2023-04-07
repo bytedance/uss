@@ -2,6 +2,8 @@ import os
 import re
 import librosa
 import time
+import pathlib
+import pickle
 
 from casa.utils import calculate_sdr
 from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, 
@@ -11,15 +13,15 @@ from casa.data.anchor_segment_mixers import AnchorSegmentMixer
 from casa.data.query_condition_extractors import QueryConditionExtractor
 from casa.models.pl_modules import LitSeparation
 from casa.models.resunet import *
+from casa.config import IX_TO_LB
 
 
-class AudiosetEvaluator:
+class AudioSetEvaluator:
     def __init__(self, pl_model, audios_dir, classes_num, max_eval_per_class=None):
 
         self.pl_model = pl_model
         self.audios_dir = audios_dir
         self.classes_num = classes_num
-        self.device = pl_model.device
         self.max_eval_per_class = max_eval_per_class
 
     @torch.no_grad()
@@ -36,6 +38,9 @@ class AudiosetEvaluator:
 
             for audio_index, audio_name in enumerate(audio_names):
 
+                if audio_index == self.max_eval_per_class:
+                    break
+
                 source_path = os.path.join(sub_dir, "{},source.wav".format(audio_name))
                 mixture_path = os.path.join(sub_dir, "{},mixture.wav".format(audio_name))
 
@@ -44,12 +49,14 @@ class AudiosetEvaluator:
 
                 sdr_no_sep = calculate_sdr(ref=source, est=mixture)
                 
+                device = self.pl_model.device
+                
                 conditions = self.pl_model.query_condition_extractor(
-                    segments=torch.Tensor(source)[None, :].to(self.device),
+                    segments=torch.Tensor(source)[None, :].to(device),
                 )
                 
                 input_dict = {
-                    'mixture': torch.Tensor(mixture)[None, None, :].to(self.device),
+                    'mixture': torch.Tensor(mixture)[None, None, :].to(device),
                     'condition': conditions,
                 }
 
@@ -62,9 +69,6 @@ class AudiosetEvaluator:
 
                 sdrs_dict[class_id].append(sdr)
                 sdris_dict[class_id].append(sdri)
-
-                if audio_index == self.max_eval_per_class:
-                    break
 
             print("Class ID: {} / {}, SDR: {:.3f}, SDRi: {:.3f}".format(class_id, self.classes_num, np.mean(sdrs_dict[class_id]), np.mean(sdris_dict[class_id])))
 
@@ -137,25 +141,44 @@ def add2():
         lr_lambda=None,
     )
 
-    checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_0/checkpoints/lightning_logs/version_8/checkpoints/step=1.ckpt"
+    # checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_9/checkpoints/step=80000.ckpt"
 
-    pl_model = LitSeparation.load_from_checkpoint(
-        checkpoint_path=checkpoint_path,
-        strict=False,
-        ss_model=ss_model,
-        anchor_segment_detector=None,
-        anchor_segment_mixer=None,
-        query_condition_extractor=query_condition_extractor,
-        loss_function=None,
-        learning_rate=None,
-        lr_lambda=None,
-    ).to(device)
+    for step in [20000, 40000, 60000, 80000, 100000, 120000, 140000, 160000]:
+        checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_9/checkpoints/step={}.ckpt".format(step)
 
-    audios_dir = "/home/tiger/workspaces/casa/evaluation/audioset/mixtures_sources_test"
+        pl_model = LitSeparation.load_from_checkpoint(
+            checkpoint_path=checkpoint_path,
+            strict=False,
+            ss_model=ss_model,
+            anchor_segment_detector=None,
+            anchor_segment_mixer=None,
+            query_condition_extractor=query_condition_extractor,
+            loss_function=None,
+            learning_rate=None,
+            lr_lambda=None,
+        ).to(device)
 
-    evaluator = AudiosetEvaluator(pl_model=pl_model, audios_dir=audios_dir, classes_num=classes_num, max_eval_per_class=5)
+        audios_dir = "/home/tiger/workspaces/casa/evaluation/audioset/mixtures_sources_test"
 
-    evaluator()
+        evaluator = AudioSetEvaluator(pl_model=pl_model, audios_dir=audios_dir, classes_num=classes_num, max_eval_per_class=None)
+
+        stats_dict = evaluator()
+
+        mean_sdris = {}
+
+        for class_id in range(classes_num):
+            mean_sdris[class_id] = np.nanmean(stats_dict['sdris_dict'][class_id])
+            print("{} {}: {:.3f}".format(class_id, IX_TO_LB[class_id], mean_sdris[class_id]))
+
+        final_sdri = np.nanmean([mean_sdris[class_id] for class_id in range(classes_num)])
+        print("--------")
+        print("Final avg SDRi: {:.3f}".format(final_sdri))
+
+        os.makedirs("stats", exist_ok=True)
+        stat_path = os.path.join("stats", "{}.pkl".format(pathlib.Path(checkpoint_path).stem))
+        pickle.dump(stats_dict, open(stat_path, 'wb'))
+        print("Write out to {}".format(stat_path))
+        
 
 if __name__ == '__main__':
 

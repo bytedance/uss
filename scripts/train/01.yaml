@@ -36,7 +36,7 @@ train:
     loss_type: l1_wav
     optimizer_type: AdamW
     learning_rate: 1e-3
-    batch_size_per_device: 12
+    batch_size_per_device: 16
     precision: 32
     steps_per_epoch: 10000  # Every 10000 steps is called an `epoch`.
     evaluate_step_frequency: 20000     # Evaluate every #evaluate_step_frequency steps.
@@ -45,6 +45,11 @@ train:
     warm_up_steps: -1
     reduce_lr_steps: 1000000
     random_seed: 1234
+
+evaluate:
+    balanced_train_eval_dir: "evaluation/audioset/mixtures_sources_balanced_train"
+    test_eval_dir: "evaluation/audioset/mixtures_sources_test"
+    max_eval_per_class: 5
     
 #     batch_data_preprocessor: AudioSetBatchDataPreprocessor4
 #     segment_mix_type: "none"

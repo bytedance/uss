@@ -79,8 +79,6 @@ def create_evaluation_meta(args):
     output_audios_dir = args.output_audios_dir
     output_meta_csv_path = args.output_meta_csv_path
     
-    os.makedirs(output_audios_dir, exist_ok=True)
-
     num_workers = 16
 
     if split == 'balanced_train':
@@ -162,6 +160,10 @@ def create_evaluation_meta(args):
         meta_dict['source{}_name'.format(i + 1)] = []
         meta_dict['source{}_class_id'.format(i + 1)] = []
         meta_dict['source{}_onset'.format(i + 1)] = []
+
+    for class_id in range(classes_num):
+        sub_dir = os.path.join(output_audios_dir, "classid={}".format(class_id))
+        os.makedirs(sub_dir, exist_ok=True)
         
     for batch_index, batch_data_dict in enumerate(dataloader):
 
@@ -194,8 +196,8 @@ def create_evaluation_meta(args):
                 mixture_name = "classid={},index={:03d},mixture.wav".format(class_id, count_dict[class_id])
                 source_name = "classid={},index={:03d},source.wav".format(class_id, count_dict[class_id])
 
-                mixture_path = os.path.join(output_audios_dir, mixture_name)
-                source_path = os.path.join(output_audios_dir, source_name)
+                mixture_path = os.path.join(output_audios_dir, "classid={}".format(class_id), mixture_name)
+                source_path = os.path.join(output_audios_dir, "classid={}".format(class_id), source_name)
 
                 soundfile.write(file=mixture_path, data=mixtures[n], samplerate=sample_rate)
                 soundfile.write(file=source_path, data=segments[n], samplerate=sample_rate)
@@ -230,8 +232,8 @@ def create_evaluation_meta(args):
         if all_classes_finished(count_dict, eval_segments_per_class):
             break
 
-    # from IPython import embed; embed(using=False); os._exit(0)
     write_meta_dict_to_csv(meta_dict, output_meta_csv_path)
+    print("Write csv to {}".format(output_meta_csv_path))
 
 
 def all_classes_finished(count_dict, segments_per_class):
