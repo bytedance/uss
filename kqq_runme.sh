@@ -19,3 +19,5 @@ CUDA_VISIBLE_DEVICES=1 python3 casa/train.py \
     --config_yaml="./scripts/train/01.yaml"
 
 CUDA_VISIBLE_DEVICES=0 python3 casa/evaluate.py
+
+python3 casa/plot.py

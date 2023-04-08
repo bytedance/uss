@@ -10,6 +10,7 @@ class CheckpointEveryNSteps(pl.Callback):
 
     def __init__(
         self,
+        checkpoints_dir,
         save_step_frequency,
     ):
         """
@@ -20,6 +21,7 @@ class CheckpointEveryNSteps(pl.Callback):
             use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
                 default filename, don't use ours.
         """
+        self.checkpoints_dir = checkpoints_dir
         self.save_step_frequency = save_step_frequency
 
     def on_train_batch_end(self, *args, **kwargs):
@@ -30,9 +32,6 @@ class CheckpointEveryNSteps(pl.Callback):
 
         if global_step == 1 or global_step % self.save_step_frequency == 0:
             
-            ckpt_path = os.path.join(
-                trainer.checkpoint_callback.dirpath, 
-                "step={}.ckpt".format(global_step)
-            )
+            ckpt_path = os.path.join(self.checkpoints_dir, "step={}.ckpt".format(global_step))
             trainer.save_checkpoint(ckpt_path)
             print("Save checkpoint to {}".format(ckpt_path))

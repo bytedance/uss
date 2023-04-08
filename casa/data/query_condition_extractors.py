@@ -13,11 +13,21 @@ class QueryConditionExtractor(nn.Module):
         self.at_model = at_model
         self.condition_type = condition_type
 
+
     def __call__(self, segments):
+
+        if self.condition_type == "embedding":
+            condition_type = "embedding"
+
+        elif self.condition_type == "at_soft":
+            condition_type = "clipwise_output"
+
+        else:
+            raise NotImplementedError
 
         with torch.no_grad():
             self.at_model.eval()
-            conditions = self.at_model(segments)[self.condition_type]
+            conditions = self.at_model(segments)[condition_type]
 
         return conditions
 

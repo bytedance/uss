@@ -131,11 +131,12 @@ class LitSeparation(pl.LightningModule):
     # def validation_step(self, batch, batch_idx):
     #     from IPython import embed; embed(using=False); os._exit(0)
     
+    
     def configure_optimizers(self):
         r"""Configure optimizer.
         """
 
-        optimizer = optim.Adam(
+        optimizer = optim.AdamW(
             self.ss_model.parameters(),
             lr=self.learning_rate,
             betas=(0.9, 0.999),
@@ -168,42 +169,8 @@ class LitSeparation(pl.LightningModule):
     def configure_optimizers(self):
         r"""Configure optimizer.
         """
-
-        optimizer = optim.Adam(
-            self.ss_model.parameters(),
-            lr=self.learning_rate,
-            betas=(0.9, 0.999),
-            eps=1e-08,
-            weight_decay=0.0,
-            amsgrad=True,
-        )
-
-        def lr_lambda(step):
-            if 0 <= step < 1000:
-                lr_scale = 0.001
-            elif 1000 <= step < 2000:
-                lr_scale = 0.01
-            elif 2000 <= step < 3000:
-                lr_scale = 0.1
-            else:
-                lr_scale = 1
-
-            return lr_scale
-
-        scheduler = {
-            'scheduler': LambdaLR(optimizer, lr_lambda),
-            'interval': 'step',
-            'frequency': 1,
-        }
-
-        return [optimizer], [scheduler]
-    '''
-    '''
-    def configure_optimizers(self):
-        r"""Configure optimizer.
-        """
         
-        optimizer = optim.Adam(
+        optimizer = optim.AdamW(
             self.ss_model.parameters(),
             lr=self.learning_rate,
             betas=(0.9, 0.999),
@@ -213,8 +180,8 @@ class LitSeparation(pl.LightningModule):
         )
 
         def lr_lambda(step):
-            if step < 30000:
-                lr_scale = ((step // 100) * 100) / 30000
+            if step < 1000:
+                lr_scale = step / 1000
             else:
                 lr_scale = 1
             return lr_scale

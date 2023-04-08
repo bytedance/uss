@@ -17,13 +17,14 @@ data:
     sample_rate: 32000
     frames_per_second: 100
     segment_seconds: 2.0
+    classes_num: 527
     augmentation:
         match_energy: True
         random_scale:
             lower_db: 0
             higher_db: 0
-    condition_type: 'embedding'
-    condition_size: 2048
+    condition_type: 'at_soft'
+    condition_size: 527
 
 model:
     model_type: ResUNet30
@@ -49,13 +50,5 @@ train:
 evaluate:
     balanced_train_eval_dir: "evaluation/audioset/mixtures_sources_balanced_train"
     test_eval_dir: "evaluation/audioset/mixtures_sources_test"
-    max_eval_per_class: 5
+    max_eval_per_class: 10
     
-#     batch_data_preprocessor: AudioSetBatchDataPreprocessor4
-#     segment_mix_type: "none"
-
-# evaluate:
-#     balanced_train_hdf5: "hdf5s/waveforms/balanced_train.h5"
-#     balanced_train_meta_csv: "eval_meta/eval_balanced_train.csv"
-#     test_hdf5: "hdf5s/waveforms/eval.h5"
-#     test_meta_csv: "eval_meta/eval_test.csv"

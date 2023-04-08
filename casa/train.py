@@ -277,7 +277,7 @@ def train(args) -> NoReturn:
 
     query_condition_extractor = QueryConditionExtractor(
         at_model=at_model,
-        condition_type='embedding',
+        condition_type=condition_type,
     )
 
     # pytorch-lightning model
@@ -297,7 +297,10 @@ def train(args) -> NoReturn:
     #     save_top_k=3, monitor="val_loss"
     # )
 
-    checkpoint_every_n_steps = CheckpointEveryNSteps(save_step_frequency=save_step_frequency)
+    checkpoint_every_n_steps = CheckpointEveryNSteps(
+        checkpoints_dir=checkpoints_dir,
+        save_step_frequency=save_step_frequency,
+    )
 
     evaluate_callback = EvaluateCallback(
         pl_model=pl_model,
@@ -325,6 +328,9 @@ def train(args) -> NoReturn:
         use_distributed_sampler=False,
         sync_batchnorm=True,
         num_sanity_val_steps=2,
+        enable_checkpointing=False,
+        enable_progress_bar=True,
+        enable_model_summary=True,
         # default_root_dir="/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_0/checkpoints",
     )
 
@@ -336,10 +342,6 @@ def train(args) -> NoReturn:
         datamodule=data_module,
         ckpt_path=None,
     )
-
-
-
-
 
 
 if __name__ == "__main__":
