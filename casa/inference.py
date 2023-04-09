@@ -4,6 +4,9 @@ import librosa
 import time
 import pathlib
 import pickle
+import json
+import soundfile
+import argparse
 
 from casa.utils import calculate_sdr
 from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, 
@@ -14,32 +17,23 @@ from casa.data.query_condition_extractors import QueryConditionExtractor
 from casa.models.pl_modules import LitSeparation
 from casa.models.resunet import *
 from casa.config import IX_TO_LB
+from casa.parse_ontology import get_ontology_tree, get_subclass_indexes
 
 
-def add():
+ontology_path = 'metadata/ontology.json'
+audioset632_id_to_lb = {}
+with open(ontology_path) as f:
+    data_list = json.load(f)
+for e in data_list:
+    audioset632_id_to_lb[e['id']] = e['name']
 
-    config_yaml = "./scripts/train/01b.yaml"
-    sample_rate = 32000
-    classes_num = 527
-    device = 'cuda'
 
-    configs = read_yaml(config_yaml)
-
-    num_workers = configs['train']['num_workers']
-    model_type = configs['model']['model_type']
-    input_channels = configs['model']['input_channels']
-    output_channels = configs['model']['output_channels']
-    condition_size = configs['data']['condition_size']
-    loss_type = configs['train']['loss_type']
-    learning_rate = float(configs['train']['learning_rate'])
-    condition_type = configs['data']['condition_type']
-
-    sample_rate = configs['data']['sample_rate']
+def load_ss_model(at_model_name, ss_model_name, input_channels, output_channels, condition_type, condition_size, checkpoint_path, device):
 
     at_model = load_pretrained_model(
-        model_name=configs['audio_tagging']['model_name'],
-        checkpoint_path=configs['audio_tagging']['checkpoint_path'],
-        freeze=configs['audio_tagging']['freeze'],
+        model_name=at_model_name,
+        checkpoint_path=None,
+        freeze=None,
     )
 
     query_condition_extractor = QueryConditionExtractor(
@@ -47,7 +41,7 @@ def add():
         condition_type=condition_type,
     )
 
-    Model = eval(model_type)
+    Model = eval(ss_model_name)
     # Model = str_to_class(model_type)
 
     ss_model = Model(
@@ -56,8 +50,12 @@ def add():
         condition_size=condition_size,
     )
 
-    # pytorch-lightning model
-    pl_model = LitSeparation(
+    # step = 300000
+    # checkpoint_path = "/home/tiger/workspaces/casa/checkpoints/train/config={},devices=1/step={}.ckpt".format(pathlib.Path(config_yaml).stem, step)
+
+    pl_model = LitSeparation.load_from_checkpoint(
+        checkpoint_path=checkpoint_path,
+        strict=False,
         ss_model=ss_model,
         anchor_segment_detector=None,
         anchor_segment_mixer=None,
@@ -65,50 +63,133 @@ def add():
         loss_function=None,
         learning_rate=None,
         lr_lambda=None,
+    ).to(device)
+
+    return pl_model
+
+
+def add(args):
+
+    audio_path = args.audio_path
+
+    config_yaml = "./scripts/train/01b.yaml"
+
+    configs = read_yaml(config_yaml)
+    at_model_name = configs['audio_tagging']['model_name']
+    model_type = configs['model']['model_type']
+    input_channels = configs['model']['input_channels']
+    output_channels = configs['model']['output_channels']
+    condition_size = configs['data']['condition_size']
+    condition_type = configs['data']['condition_type']
+    sample_rate = configs['data']['sample_rate']
+    classes_num = configs["data"]["classes_num"]
+    segment_samples = sample_rate * 2
+    device = 'cuda'
+
+    assert condition_type == "at_soft"
+
+    step = 300000
+    checkpoint_path = "/home/tiger/workspaces/casa/checkpoints/train/config={},devices=1/step={}.ckpt".format(pathlib.Path(config_yaml).stem, step)
+
+    pl_model = load_ss_model(
+        at_model_name=at_model_name, 
+        ss_model_name=model_type, 
+        input_channels=input_channels, 
+        output_channels=output_channels, 
+        condition_type=condition_type, 
+        condition_size=condition_size, 
+        checkpoint_path=checkpoint_path, 
+        device=device,
     )
 
-    # checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_9/checkpoints/step=80000.ckpt"
+    # audio_path = "./resources/harry_potter.flac"
+    audio, fs = librosa.load(audio_path, sr=sample_rate, mono=True)
 
-    # for step in [20000, 40000, 60000, 80000, 100000, 120000, 140000, 160000]:
-    for step in [20000, 40000, 60000, 80000, 100000]:
-        # checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_9/checkpoints/step={}.ckpt".format(step)
-        checkpoint_path = "/home/tiger/workspaces/casa/checkpoints/train/config={},devices=1/step={}.ckpt".format(pathlib.Path(config_yaml).stem, step)
+    ###
+    # cluster_levels = [3]
+    hierarchies = [1, 2]
 
-        pl_model = LitSeparation.load_from_checkpoint(
-            checkpoint_path=checkpoint_path,
-            strict=False,
-            ss_model=ss_model,
-            anchor_segment_detector=None,
-            anchor_segment_mixer=None,
-            query_condition_extractor=query_condition_extractor,
-            loss_function=None,
-            learning_rate=None,
-            lr_lambda=None,
-        ).to(device)
+    # Parse ontology.
+    root = get_ontology_tree(verbose=False)
 
-        audios_dir = "/home/tiger/workspaces/casa/evaluation/audioset/mixtures_sources_test"
+    # Get id_list of all sound classes with the target cluster_levels.
+    class_id_list = []
+    nodes = Node.traverse(root)
 
-        evaluator = AudioSetEvaluator(pl_model=pl_model, audios_dir=audios_dir, classes_num=classes_num, max_eval_per_class=10)
+    for node, layer in zip(nodes, layers):
+        if layer in cluster_levels:
+            if len(get_subclass_indexes(root, id=node.id)) > 0:
+                id_list.append(node.id)
 
-        stats_dict = evaluator()
+    id_indexes = {}
 
-        mean_sdris = {}
 
-        for class_id in range(classes_num):
-            mean_sdris[class_id] = np.nanmean(stats_dict['sdris_dict'][class_id])
-            print("{} {}: {:.3f}".format(class_id, IX_TO_LB[class_id], mean_sdris[class_id]))
+    # for _n, target_id in enumerate(id_list):
+    for k, class_id in enumerate(id_list):
 
-        final_sdri = np.nanmean([mean_sdris[class_id] for class_id in range(classes_num)])
-        print("--------")
-        print("Final avg SDRi: {:.3f}".format(final_sdri))
+        subclass_indexes = get_subclass_indexes(root, id=class_id)
 
-        
-        stat_path = os.path.join("stats", pathlib.Path(config_yaml).stem, "step={}.pkl".format(step))
-        os.makedirs(os.path.dirname(stat_path), exist_ok=True)
-        pickle.dump(stats_dict, open(stat_path, 'wb'))
-        print("Write out to {}".format(stat_path))
-        
+        pointer = 0
+        sep_audio = []
+        # at_probs = []
+        # sed_probs = []
+
+        while pointer < audio.shape[-1]:
+
+            segment = librosa.util.fix_length(
+                data=audio[pointer : pointer + segment_samples],
+                size=segment_samples,
+                axis=0,
+            )
+            
+            segments = torch.Tensor(segment)[None, :].to(device)
+
+            with torch.no_grad():
+                pl_model.query_condition_extractor.eval()
+
+                query_condition = pl_model.query_condition_extractor(
+                    segments=segments,
+                ).squeeze().data.cpu().numpy()
+
+            diff_indexes = np.setdiff1d(ar1=np.arange(classes_num), ar2=subclass_indexes)
+            query_condition[diff_indexes] = 0
+
+            if np.max(query_condition > 0.2):
+                input_dict = {
+                    'mixture': segments[:, None, :],
+                    'condition': torch.Tensor(query_condition[None, :]).to(device),
+                }
+
+                # from IPython import embed; embed(using=False); os._exit(0)
+                with torch.no_grad():
+                    pl_model.ss_model.eval()
+                    output_dict = pl_model.ss_model(input_dict=input_dict)
+                    
+                sep_segment = output_dict['waveform'].data.cpu().numpy().squeeze()
+            else:
+                sep_segment = np.zeros(segment_samples)
+
+            sep_audio.append(sep_segment)
+            pointer += segment_samples
+
+        sep_audio = np.concatenate(sep_audio, axis=0)
+
+        if np.max(sep_audio) > 1e-6:
+            
+            label = audioset632_id_to_lb[class_id]
+
+            output_path = "_tmp2/level={}/{}.wav".format(cluster_levels[0], label)
+
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            soundfile.write(file=output_path, data=sep_audio, samplerate=sample_rate)
+            print("Write out to {}".format(output_path))
+
 
 if __name__ == '__main__':
 
-    add()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--audio_path', type=str)
+
+    args = parser.parse_args()
+
+    add(args)

@@ -6,7 +6,7 @@ SAMPLE_RATE = 32000
 CLIP_SAMPLES = SAMPLE_RATE * 10     # Audio clips are 10-second
 
 # Read csv file.
-meta_csv_file = "metadata/class_labels_indices.csv"
+meta_csv_file = "./metadata/class_labels_indices.csv"
 df = pd.read_csv(meta_csv_file, sep=',')
 
 IDS = df['mid'].tolist()

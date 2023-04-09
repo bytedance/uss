@@ -147,8 +147,9 @@ def load_pretrained_model(model_name, checkpoint_path, freeze):
     model = eval(model_name)(sample_rate=32000, window_size=1024, hop_size=320, 
         mel_bins=64, fmin=50, fmax=14000, classes_num=527)
     
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
-    model.load_state_dict(checkpoint['model'])
+    if checkpoint_path:
+        checkpoint = torch.load(checkpoint_path, map_location='cpu')
+        model.load_state_dict(checkpoint['model'])
 
     if freeze:
         for param in model.parameters():

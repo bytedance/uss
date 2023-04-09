@@ -92,7 +92,7 @@ class AudioSetEvaluator:
 
 def add2():
 
-    config_yaml = "./scripts/train/01b.yaml"
+    config_yaml = "./scripts/train/01a.yaml"
     sample_rate = 32000
     classes_num = 527
     device = 'cuda'
@@ -144,7 +144,8 @@ def add2():
     # checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_9/checkpoints/step=80000.ckpt"
 
     # for step in [20000, 40000, 60000, 80000, 100000, 120000, 140000, 160000]:
-    for step in [20000, 40000, 60000, 80000, 100000]:
+    for step in range(180000, 400000, 20000):
+    # for step in [20000, 40000, 60000, 80000, 100000]:
         # checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_9/checkpoints/step={}.ckpt".format(step)
         checkpoint_path = "/home/tiger/workspaces/casa/checkpoints/train/config={},devices=1/step={}.ckpt".format(pathlib.Path(config_yaml).stem, step)
 

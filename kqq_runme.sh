@@ -21,3 +21,6 @@ CUDA_VISIBLE_DEVICES=1 python3 casa/train.py \
 CUDA_VISIBLE_DEVICES=0 python3 casa/evaluate.py
 
 python3 casa/plot.py
+
+
+CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py --audio_path=./resources/harry_potter.flac
