@@ -16,81 +16,7 @@ from casa.models.resunet import *
 from casa.config import IX_TO_LB
 
 
-class AudioSetEvaluator:
-    def __init__(self, pl_model, audios_dir, classes_num, max_eval_per_class=None):
-
-        self.pl_model = pl_model
-        self.audios_dir = audios_dir
-        self.classes_num = classes_num
-        self.max_eval_per_class = max_eval_per_class
-
-    @torch.no_grad()
-    def __call__(self):
-
-        sdrs_dict = {class_id: [] for class_id in range(self.classes_num)}
-        sdris_dict = {class_id: [] for class_id in range(self.classes_num)}
-
-        for class_id in range(self.classes_num):
-
-            sub_dir = os.path.join(self.audios_dir, "classid={}".format(class_id))            
-
-            audio_names = self._get_audio_names(audios_dir=sub_dir)
-
-            for audio_index, audio_name in enumerate(audio_names):
-
-                if audio_index == self.max_eval_per_class:
-                    break
-
-                source_path = os.path.join(sub_dir, "{},source.wav".format(audio_name))
-                mixture_path = os.path.join(sub_dir, "{},mixture.wav".format(audio_name))
-
-                source, fs = librosa.load(source_path, sr=None, mono=True)
-                mixture, fs = librosa.load(mixture_path, sr=None, mono=True)
-
-                sdr_no_sep = calculate_sdr(ref=source, est=mixture)
-                
-                device = self.pl_model.device
-                
-                conditions = self.pl_model.query_condition_extractor(
-                    segments=torch.Tensor(source)[None, :].to(device),
-                )
-                
-                input_dict = {
-                    'mixture': torch.Tensor(mixture)[None, None, :].to(device),
-                    'condition': conditions,
-                }
-
-                self.pl_model.eval()
-                sep_segment = self.pl_model.ss_model(input_dict)['waveform']
-                sep_segment = sep_segment.squeeze().data.cpu().numpy()
-
-                sdr = calculate_sdr(ref=source, est=sep_segment)
-                sdri = sdr - sdr_no_sep
-
-                sdrs_dict[class_id].append(sdr)
-                sdris_dict[class_id].append(sdri)
-
-            print("Class ID: {} / {}, SDR: {:.3f}, SDRi: {:.3f}".format(class_id, self.classes_num, np.mean(sdrs_dict[class_id]), np.mean(sdris_dict[class_id])))
-
-        stats_dict = {
-            "sdrs_dict": sdrs_dict,
-            "sdris_dict": sdris_dict,
-        }
-
-        return stats_dict
-
-    def _get_audio_names(self, audios_dir):
-            
-        audio_names = sorted(os.listdir(audios_dir))
-
-        audio_names = [re.search('(.*),(mixture|source).wav', audio_name).group(1) for audio_name in audio_names]
-
-        audio_names = sorted(list(set(audio_names)))
-
-        return audio_names
-
-
-def add2():
+def add():
 
     config_yaml = "./scripts/train/01b.yaml"
     sample_rate = 32000
@@ -185,4 +111,4 @@ def add2():
 
 if __name__ == '__main__':
 
-    add2()
+    add()
