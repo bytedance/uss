@@ -8,12 +8,12 @@ from casa.config import IX_TO_LB
 
 def add():
 
-    config_yaml = "01b"
+    config_yaml = "02a"
     classes_num = 527
     final_sdris = []
 
-    # for step in [20000, 40000, 60000, 80000, 100000, 120000, 140000, 160000]:
-    for step in [20000, 40000, 60000, 80000, 100000]:
+    for step in range(180000, 300001, 20000):
+    # for step in [20000, 40000, 60000, 80000, 100000]:
 
         stat_path = os.path.join("stats", pathlib.Path(config_yaml).stem, "step={}.pkl".format(step))
 

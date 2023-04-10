@@ -7,7 +7,7 @@ from typing import List, NoReturn
 import lightning.pytorch as pl
 
 from casa.data.datasets import Dataset
-from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, load_pretrained_at_model
+from casa.utils import create_logging, read_yaml, load_pretrained_model
 from casa.data.samplers import BalancedSampler
 from casa.data.datamodules import DataModule
 from casa.models.resunet import *
@@ -16,10 +16,8 @@ from casa.models.pl_modules import LitSeparation
 from casa.data.anchor_segment_detectors import AnchorSegmentDetector
 from casa.data.anchor_segment_mixers import AnchorSegmentMixer
 from casa.data.query_condition_extractors import QueryConditionExtractor
-# from lightning.pytorch.callbacks import ModelCheckpoint
 from casa.callbacks.base import CheckpointEveryNSteps
 from casa.callbacks.evaluate import EvaluateCallback
-# from casa.evaluate import AudiosetEvaluator
 
 
 def get_dirs(workspace: str, filename: str, config_yaml: str, devices_num: int) -> List[str]:
@@ -136,17 +134,6 @@ def get_data_module(
 
     return data_module
 
-# def get_devices_num():
-    
-#     devices_str = os.getenv("CUDA_VISIBLE_DEVICES")
-
-#     if not devices_str:
-#         raise Exception("Must set the CUDA_VISIBLE_DEVICES flag.")
-
-#     devices_num = len(devices_str.split(','))
-
-#     return devices_num
-
 
 def train(args) -> NoReturn:
     r"""Train, evaluate, and save checkpoints.
@@ -193,30 +180,6 @@ def train(args) -> NoReturn:
     max_eval_per_class = configs["evaluate"]["max_eval_per_class"]
 
     classes_num = 527
-
-    # steps_per_epoch = configs["train"]["steps_per_epoch"]
-
-
-    # sed_checkpoint_path = configs["train"]["sed_checkpoint_path"]
-    # at_checkpoint_path = configs["train"]["at_checkpoint_path"]
-    # sample_rate = configs["train"]["sample_rate"]
-    # input_channels = configs["train"]["input_channels"]
-    # output_channels = configs["train"]["output_channels"]
-    # frames_per_second = configs["train"]["frames_per_second"]
-    # segment_seconds = configs["train"]["segment_seconds"]
-    # condition_type = configs["train"]["condition_type"]
-    # condition_size = configs["train"]["condition_size"]
-    # is_gamma = configs["train"]["condition_settings"]["gamma"]
-    # augmentation = configs["train"]["augmentation"]
-    # model_type = configs["train"]["model_type"]
-    # loss_type = configs["train"]["loss_type"]
-    # learning_rate = float(configs["train"]["learning_rate"])
-    # precision = configs["train"]["precision"]
-    # early_stop_steps = configs["train"]["early_stop_steps"]
-    # warm_up_steps = configs["train"]["warm_up_steps"]
-    # reduce_lr_steps = configs["train"]["reduce_lr_steps"]
-
-    # clip_samples = CLIP_SAMPLES
 
     # # paths
     checkpoints_dir, logs_dir, statistics_path = get_dirs(
