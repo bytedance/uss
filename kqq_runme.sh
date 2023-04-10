@@ -23,4 +23,7 @@ CUDA_VISIBLE_DEVICES=0 python3 casa/evaluate.py
 python3 casa/plot.py
 
 
-CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py --audio_path=./resources/harry_potter.flac
+CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py \
+    --audio_path=./resources/harry_potter.flac \
+    --levels 1 2 3 \
+    --checkpoint_path="/home/tiger/workspaces/casa/checkpoints/train/config=01b,devices=1/step=300000.ckpt"

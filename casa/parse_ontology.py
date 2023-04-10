@@ -135,7 +135,7 @@ from casa.config import IDS, ID_TO_IX
 
 
 class Node:
-    def __init__(self, data, depth):
+    def __init__(self, data, level):
         r"""
 
         Args:
@@ -150,7 +150,7 @@ class Node:
         self.class_id = data['id']
         self.data = data
         self.children = []
-        self.depth = depth
+        self.level = level
 
     @staticmethod
     def search(node, class_id):
@@ -190,6 +190,7 @@ class Node:
 
         return nodes
 
+
 root_class_id_dict = {
     '/m/0dgw9r': "Human sounds",
     '/m/0jbk': "Animal",
@@ -217,30 +218,16 @@ def get_ontology_tree(verbose=True):
         'child_ids': root_class_ids,
     }
 
-    root = Node(data=data, depth=0)
+    root = Node(data=data, level=0)
 
     for data in data_list:
         # E.g., data: {'id': '/m/0dgw9r', 'name': 'Human sounds', 'description': ..., child_ids: [...]}
 
-        # print(data)
-
         father = Node.search_parent(node=root, class_id=data['id'])
 
-        child = Node(data=data, depth=father.depth + 1)
+        child = Node(data=data, level=father.level + 1)
         
         father.children.append(child)
-
-    if verbose:
-
-        nodes = Node.traverse(node=root)
-
-        for node in nodes:
-            print(node.depth, node.data['name'], node.data['id'])
-        
-        ###
-        node = root.search(node=root, class_id='/m/0dgw9r')
-        
-        nodes = root.traverse(node=node)
 
     return root
 
