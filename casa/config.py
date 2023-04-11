@@ -3,7 +3,9 @@ import pandas as pd
 # import csv
 
 SAMPLE_RATE = 32000
-CLIP_SAMPLES = SAMPLE_RATE * 10     # Audio clips are 10-second
+CLIP_SECONDS = 10.
+CLIP_SAMPLES = int(SAMPLE_RATE * CLIP_SECONDS)
+FRAMES_PER_SECOND = 100
 
 # Read csv file.
 meta_csv_file = "./metadata/class_labels_indices.csv"

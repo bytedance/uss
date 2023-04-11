@@ -25,6 +25,7 @@ data:
             higher_db: 0
     condition_type: 'embedding'
     condition_size: 2048
+    mix_num: 2
 
 model:
     model_type: ResUNet30
@@ -35,20 +36,23 @@ model:
 train:
     num_workers: 0
     loss_type: l1_wav
-    optimizer_type: AdamW
-    learning_rate: 1e-3
+    optimizer:
+        optimizer_type: AdamW
+        learning_rate: 1e-3
+        lr_lambda_type: constant_warm_up
+        # lr_lambda_type: linear_warm_up
+        warm_up_steps: 10000
+        reduce_lr_steps: 1000000
     batch_size_per_device: 16
     precision: 32
     steps_per_epoch: 10000  # Every 10000 steps is called an `epoch`.
     evaluate_step_frequency: 20000     # Evaluate every #evaluate_step_frequency steps.
     save_step_frequency: 20000  # Save every #save_step_frequency steps.
-    early_stop_steps: 10000001
-    warm_up_steps: -1
-    reduce_lr_steps: 1000000
+    # early_stop_steps: 10000001
     random_seed: 1234
 
 evaluate:
-    balanced_train_eval_dir: "evaluation/audioset/mixtures_sources_balanced_train"
-    test_eval_dir: "evaluation/audioset/mixtures_sources_test"
+    balanced_train_eval_dir: "evaluation/audioset/2s_segments_balanced_train"
+    test_eval_dir: "evaluation/audioset/2s_segments_sources_test"
     max_eval_per_class: 10
     

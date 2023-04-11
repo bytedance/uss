@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CHECKPOINTS_DIR="~/.cache/casa"
+CHECKPOINTS_DIR="${HOME}/.cache/casa"
 mkdir -p $CHECKPOINTS_DIR
 
 AT_CHECKPOINT_PATH="${CHECKPOINTS_DIR}/Cnn14_mAP=0.431.pth"

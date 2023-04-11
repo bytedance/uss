@@ -16,8 +16,9 @@ class LitSeparation(pl.LightningModule):
         anchor_segment_mixer,
         query_condition_extractor,
         loss_function,
+        optimizer_type: str,
         learning_rate: float,
-        lr_lambda,
+        lr_lambda_func,
     ):
         r"""Pytorch Lightning wrapper of PyTorch model, including forward,
         optimization of model, etc.
@@ -36,8 +37,9 @@ class LitSeparation(pl.LightningModule):
         self.anchor_segment_mixer = anchor_segment_mixer
         self.query_condition_extractor = query_condition_extractor
         self.loss_function = loss_function
+        self.optimizer_type = optimizer_type
         self.learning_rate = learning_rate
-        self.lr_lambda = lr_lambda
+        self.lr_lambda_func = lr_lambda_func
 
     def forward(self, x):
         pass
@@ -136,34 +138,30 @@ class LitSeparation(pl.LightningModule):
         r"""Configure optimizer.
         """
 
-        optimizer = optim.AdamW(
-            self.ss_model.parameters(),
-            lr=self.learning_rate,
-            betas=(0.9, 0.999),
-            eps=1e-08,
-            weight_decay=0.0,
-            amsgrad=True,
-        )
+        if self.optimizer_type == "AdamW":
+            optimizer = optim.AdamW(
+                params=self.ss_model.parameters(),
+                lr=self.learning_rate,
+                betas=(0.9, 0.999),
+                eps=1e-08,
+                weight_decay=0.0,
+                amsgrad=True,
+            )
+        else:
+            raise NotImplementedError
 
-        def lr_lambda(step):
-            if 0 <= step < 10000:
-                lr_scale = 0.001
-            elif 10000 <= step < 20000:
-                lr_scale = 0.01
-            elif 20000 <= step < 30000:
-                lr_scale = 0.1
-            else:
-                lr_scale = 1
+        scheduler = LambdaLR(optimizer, self.lr_lambda_func)
 
-            return lr_scale
-
-        scheduler = {
-            'scheduler': LambdaLR(optimizer, lr_lambda),
-            'interval': 'step',
-            'frequency': 1,
+        output_dict = {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                'scheduler': scheduler,
+                'interval': 'step',
+                'frequency': 1,
+            }
         }
 
-        return [optimizer], [scheduler]
+        return output_dict
     
     '''
     def configure_optimizers(self):
@@ -208,17 +206,9 @@ class LitSeparation(pl.LightningModule):
     '''
 
 def get_model_class(model_type):
-    if model_type == 'CondUNet':
-        from audioset_source_separation.models.cond_unet import CondUNet
-        return CondUNet
-
-    elif model_type == "CondUNetSubbandTime":
-        from audioset_source_separation.models.cond_unet_subbandtime import CondUNetSubbandTime
-        return CondUNetSubbandTime
-
-    elif model_type == "CondResUNetSubbandTime":
-        from audioset_source_separation.models.cond_resunet_subbandtime import CondResUNetSubbandTime
-        return CondResUNetSubbandTime
+    if model_type == 'ResUNet30':
+        from casa.models.resunet import ResUNet30
+        return ResUNet30
 
     else:
-        raise NotImplementedError('Incorrect model_type!')
+        raise NotImplementedError

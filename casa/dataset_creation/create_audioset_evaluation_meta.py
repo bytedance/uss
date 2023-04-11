@@ -15,17 +15,7 @@ from casa.data.datamodules import collate_fn
 from casa.utils import load_pretrained_model
 from casa.data.anchor_segment_detectors import AnchorSegmentDetector
 from casa.data.anchor_segment_mixers import AnchorSegmentMixer
-
-# from audioset_source_separation.data.anchor_segment_detectors import AnchorSegmentDetector, AnchorSegmentDetector4, AnchorSegmentDetectorAtBest
-# from audioset_source_separation.data.augmentors import Augmentor
-# from audioset_source_separation.utils import read_yaml, create_logging, load_pretrained_sed_model, load_pretrained_at_model
-# from audioset_source_separation.data.data_modules import DataModule, Dataset, collate_fn
-# from audioset_source_separation.data.samplers import BalancedSampler
-# from audioset_source_separation.config import CLIP_SAMPLES, CLASSES_NUM
-
-
-
-
+from casa.config import SAMPLE_RATE, FRAMES_PER_SEC, CLASSES_NUM
 
 
 def create_evaluation_meta(args):
@@ -57,35 +47,34 @@ def create_evaluation_meta(args):
         config_yaml: str, path of config file
     """
 
-    sample_rate = 32000
-    channels = 1
-    frames_per_second = 100
-    segment_seconds = 2.0
-    eval_segments_per_class = 100 
-    # eval_segments_per_class = 5
-    sed_checkpoint_path = "./downloaded_checkpoints/Cnn14_DecisionLevelMax_mAP=0.385.pth"
-    at_checkpoint_path = "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
-    batch_size = 32
-    balanced_train_indexes_dict = "hdf5s/indexes/balanced_train.h5"
-    test_indexes_dict = "hdf5s/indexes/eval.h5"
-    steps_per_epoch = 10000
-    classes_num = 527
-    device = 'cuda'
-    mix_num = 2
-
     # arguments & parameters
     workspace = args.workspace
     split = args.split
     output_audios_dir = args.output_audios_dir
     output_meta_csv_path = args.output_meta_csv_path
-    
+
+    sample_rate = SAMPLE_RATE
+    frames_per_second = FRAMES_PER_SEC
+    classes_num = CLASSES_NUM
+
+    sed_checkpoint_path = "./downloaded_checkpoints/Cnn14_DecisionLevelMax_mAP=0.385.pth"
+    at_checkpoint_path = "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
+
+    channels = 1
+    segment_seconds = 2.0
+    eval_segments_per_class = 100 
+    mix_num = 2
+
+    batch_size = 32
+    steps_per_epoch = 10000
     num_workers = 16
+    device = 'cuda'
 
     if split == 'balanced_train':
-        indexes_hdf5_path = os.path.join(workspace, balanced_train_indexes_dict)
+        indexes_hdf5_path = os.path.join(workspace, "hdf5s/indexes/balanced_train.h5")
 
     elif split == 'test':
-        indexes_hdf5_path = os.path.join(workspace, test_indexes_dict)
+        indexes_hdf5_path = os.path.join(workspace, "hdf5s/indexes/eval.h5")
     # E.g., indexes_hdf5 looks like: {
     #     'audio_name': (audios_num,),
     #     'hdf5_path': (audios_num,),
@@ -162,7 +151,7 @@ def create_evaluation_meta(args):
         meta_dict['source{}_onset'.format(i + 1)] = []
 
     for class_id in range(classes_num):
-        sub_dir = os.path.join(output_audios_dir, "classid={}".format(class_id))
+        sub_dir = os.path.join(output_audios_dir, "class_id={}".format(class_id))
         os.makedirs(sub_dir, exist_ok=True)
         
     for batch_index, batch_data_dict in enumerate(dataloader):
@@ -193,11 +182,11 @@ def create_evaluation_meta(args):
 
             if count_dict[class_id] < eval_segments_per_class:
 
-                mixture_name = "classid={},index={:03d},mixture.wav".format(class_id, count_dict[class_id])
-                source_name = "classid={},index={:03d},source.wav".format(class_id, count_dict[class_id])
+                mixture_name = "class_id={},index={:03d},mixture.wav".format(class_id, count_dict[class_id])
+                source_name = "class_id={},index={:03d},source.wav".format(class_id, count_dict[class_id])
 
-                mixture_path = os.path.join(output_audios_dir, "classid={}".format(class_id), mixture_name)
-                source_path = os.path.join(output_audios_dir, "classid={}".format(class_id), source_name)
+                mixture_path = os.path.join(output_audios_dir, "class_id={}".format(class_id), mixture_name)
+                source_path = os.path.join(output_audios_dir, "class_id={}".format(class_id), source_name)
 
                 soundfile.write(file=mixture_path, data=mixtures[n], samplerate=sample_rate)
                 soundfile.write(file=source_path, data=segments[n], samplerate=sample_rate)
@@ -205,13 +194,14 @@ def create_evaluation_meta(args):
                 print("Write out to {}".format(mixture_path))
                 print("Write out to {}".format(source_path))
 
+                # Write mixing information into a csv file.
                 meta_dict['audio_name'].append(mixture_name)
                 
                 for i in range(mix_num):
                     meta_dict['source{}_name'.format(i + 1)].append(source_names[(n + i) % batch_size])
                     meta_dict['source{}_onset'.format(i + 1)].append(bgn_samples[(n + i) % batch_size] / sample_rate)
                     meta_dict['source{}_class_id'.format(i + 1)].append(class_ids[(n + i) % batch_size])
-                
+
                 ###
                 meta_dict['audio_name'].append(source_name)
                 meta_dict['source1_name'].append(source_names[n])
@@ -222,7 +212,6 @@ def create_evaluation_meta(args):
                     meta_dict['source{}_name'.format(i + 1)].append("")
                     meta_dict['source{}_onset'.format(i + 1)].append("")
                     meta_dict['source{}_class_id'.format(i + 1)].append("")
-
 
                 count_dict[class_id] += 1
 

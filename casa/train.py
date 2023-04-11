@@ -12,12 +12,14 @@ from casa.data.samplers import BalancedSampler
 from casa.data.datamodules import DataModule
 from casa.models.resunet import *
 from casa.losses import get_loss_function
-from casa.models.pl_modules import LitSeparation
+from casa.models.pl_modules import LitSeparation, get_model_class
 from casa.data.anchor_segment_detectors import AnchorSegmentDetector
 from casa.data.anchor_segment_mixers import AnchorSegmentMixer
 from casa.data.query_condition_extractors import QueryConditionExtractor
 from casa.callbacks.base import CheckpointEveryNSteps
 from casa.callbacks.evaluate import EvaluateCallback
+from casa.config import FRAMES_PER_SECOND, CLIP_SECONDS
+from casa.optimizers.lr_schedulers import get_lr_lambda
 
 
 def get_dirs(workspace: str, filename: str, config_yaml: str, devices_num: int) -> List[str]:
@@ -135,6 +137,7 @@ def get_data_module(
     return data_module
 
 
+
 def train(args) -> NoReturn:
     r"""Train, evaluate, and save checkpoints.
 
@@ -151,35 +154,36 @@ def train(args) -> NoReturn:
 
     devices_num = torch.cuda.device_count()
 
-    # distributed = True if gpus > 1 else False
-    # evaluate_device = "cuda"  # Evaluate on a single GPU card.
-
     # Read config file.
     configs = read_yaml(config_yaml)
 
-    # sed_checkpoint_path = configs['sed_checkpoint_path']
-    # at_checkpoint_path = configs['at_checkpoint_path']
+    clip_seconds = CLIP_SECONDS
+    frames_per_second = FRAMES_PER_SECOND
+    sample_rate = configs['data']['sample_rate']
+    classes_num = configs['data']['classes_num']
+    segment_seconds = configs['data']['segment_seconds']
+    mix_num = configs['data']['mix_num']
 
-    num_workers = configs['train']['num_workers']
     model_type = configs['model']['model_type']
     input_channels = configs['model']['input_channels']
     output_channels = configs['model']['output_channels']
     condition_size = configs['data']['condition_size']
-    loss_type = configs['train']['loss_type']
-    learning_rate = float(configs['train']['learning_rate'])
     condition_type = configs['data']['condition_type']
 
-    sample_rate = configs['data']['sample_rate']
+    num_workers = configs['train']['num_workers']
+    loss_type = configs['train']['loss_type']
+    optimizer_type = configs["train"]["optimizer"]["optimizer_type"]
+    learning_rate = float(configs['train']["optimizer"]['learning_rate'])
+    lr_lambda_type = configs['train']["optimizer"]['lr_lambda_type']
+    warm_up_steps = configs['train']["optimizer"]['warm_up_steps']
+    reduce_lr_steps = configs['train']["optimizer"]['reduce_lr_steps']
 
     save_step_frequency = configs['train']['save_step_frequency']
     evaluate_step_frequency = configs['train']['evaluate_step_frequency']
-    
 
     balanced_train_eval_dir = os.path.join(workspace, configs["evaluate"]["balanced_train_eval_dir"])
     test_eval_dir = os.path.join(workspace, configs["evaluate"]["test_eval_dir"])
     max_eval_per_class = configs["evaluate"]["max_eval_per_class"]
-
-    classes_num = 527
 
     # # paths
     checkpoints_dir, logs_dir, statistics_path = get_dirs(
@@ -205,12 +209,10 @@ def train(args) -> NoReturn:
         config_yaml=config_yaml,
         num_workers=num_workers,
         devices_num=devices_num,
-        # distributed=distributed,
     )
     
     # model
-    Model = eval(model_type)
-    # Model = str_to_class(model_type)
+    Model = get_model_class(model_type=model_type)
 
     ss_model = Model(
         input_channels=input_channels,
@@ -221,26 +223,27 @@ def train(args) -> NoReturn:
     # # loss function
     loss_function = get_loss_function(loss_type)
 
-    # learning rate reduce function
-    # lr_lambda = lambda step: get_lr_lambda(
-    #     step, warm_up_steps=warm_up_steps, reduce_lr_steps=reduce_lr_steps
-    # )
-
     anchor_segment_detector = AnchorSegmentDetector(
         sed_model=sed_model,
-        clip_seconds=10.,
-        segment_seconds=2.,
-        frames_per_second=100,
+        clip_seconds=clip_seconds,
+        segment_seconds=segment_seconds,
+        frames_per_second=frames_per_second,
         sample_rate=sample_rate,
     )
 
     anchor_segment_mixer = AnchorSegmentMixer(
-        mix_num=2,
+        mix_num=mix_num,
     )
 
     query_condition_extractor = QueryConditionExtractor(
         at_model=at_model,
         condition_type=condition_type,
+    )
+
+    lr_lambda_func = get_lr_lambda(
+        lr_lambda_type=lr_lambda_type,
+        warm_up_steps=warm_up_steps,
+        reduce_lr_steps=reduce_lr_steps,
     )
 
     # pytorch-lightning model
@@ -250,8 +253,9 @@ def train(args) -> NoReturn:
         anchor_segment_mixer=anchor_segment_mixer,
         query_condition_extractor=query_condition_extractor,
         loss_function=loss_function,
+        optimizer_type=optimizer_type,
         learning_rate=learning_rate,
-        lr_lambda=None,
+        lr_lambda_func=lr_lambda_func,
     )
 
     
