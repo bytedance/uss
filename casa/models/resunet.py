@@ -638,7 +638,6 @@ class ResUNet30(nn.Module):
             condition_size=condition_size
         )
 
-
     def forward(self, input_dict):
 
         mixtures = input_dict['mixture']

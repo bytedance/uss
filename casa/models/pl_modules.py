@@ -9,6 +9,7 @@ from torch.optim.lr_scheduler import LambdaLR
 
 
 class LitSeparation(pl.LightningModule):
+    '''
     def __init__(
         self,
         ss_model: nn.Module,
@@ -83,12 +84,11 @@ class LitSeparation(pl.LightningModule):
         }
 
         target_dict = {
-            'segment': segments,
+            'segment': segments[:, None, :],
         }
 
         self.ss_model.train()
         sep_segment = self.ss_model(input_dict)['waveform']
-        sep_segment = sep_segment.squeeze()
         # (batch_size, 1, segment_samples)
 
         output_dict = {
@@ -98,10 +98,98 @@ class LitSeparation(pl.LightningModule):
         # Calculate loss.
         loss = self.loss_function(output_dict, target_dict)
 
-        # self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        self.log_dict({"train_loss": loss})
+        return loss
+    '''
+    def __init__(
+        self,
+        ss_model: nn.Module,
+        anchor_segment_detector,
+        anchor_segment_mixer,
+        query_net,
+        loss_function,
+        optimizer_type: str,
+        learning_rate: float,
+        lr_lambda_func,
+    ):
+        r"""Pytorch Lightning wrapper of PyTorch model, including forward,
+        optimization of model, etc.
+
+        Args:
+            ss_model: nn.Module
+            anchor_segment_detector: nn.Module
+            loss_function: function or object
+            learning_rate: float
+            lr_lambda: function
+        """
+
+        super().__init__()
+        self.ss_model = ss_model
+        self.anchor_segment_detector = anchor_segment_detector
+        self.anchor_segment_mixer = anchor_segment_mixer
+        self.query_net = query_net
+        self.loss_function = loss_function
+        self.optimizer_type = optimizer_type
+        self.learning_rate = learning_rate
+        self.lr_lambda_func = lr_lambda_func
+
+    def forward(self, x):
+        pass
+
+    def training_step(self, batch_data_dict, batch_idx):
+        r"""Forward a mini-batch data to model, calculate loss function, and
+        train for one step. A mini-batch data is evenly distributed to multiple
+        devices (if there are) for parallel training.
+
+        Args:
+            batch_data_dict: e.g. {
+                'hdf5_path': (batch_size,),
+                'index_in_hdf5': (batch_size),
+                'audio_name': (batch_size),
+                'waveform': (batch_size),
+                'target': (batch_size),
+                'class_id': (batch_size),
+            }
+            batch_idx: int
+
+        Returns:
+            loss: float, loss function of this mini-batch
+        """
+
+        segments_dict = self.anchor_segment_detector(
+            waveforms=batch_data_dict['waveform'],
+            class_ids=batch_data_dict['class_id'],
+        )
+        
+        mixtures, segments = self.anchor_segment_mixer(
+            waveforms=segments_dict['waveform'],
+        )
+
+        conditions = self.query_net(
+            source=segments,
+        )['output']
+        
+        input_dict = {
+            'mixture': mixtures[:, None, :],
+            'condition': conditions,
+        }
+
+        target_dict = {
+            'segment': segments[:, None, :],
+        }
+
+        self.ss_model.train()
+        sep_segment = self.ss_model(input_dict)['waveform']
+        # (batch_size, 1, segment_samples)
+
+        output_dict = {
+            'segment': sep_segment,
+        }
+
+        # Calculate loss.
+        loss = self.loss_function(output_dict, target_dict)
 
         return loss
+
 
     def test_step(self, batch, batch_idx):
         pass

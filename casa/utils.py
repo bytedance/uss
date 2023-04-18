@@ -10,6 +10,7 @@ import torch
 import numpy as np
 from panns_inference.models import Cnn14, Cnn14_DecisionLevelMax
 from panns_inference.models import Cnn14
+# from casa.models.query_nets import AdaptiveCnn14
 # from openunmix.filtering import wiener
 # from audioset_source_separation.pann.models import Cnn14_DecisionLevelMax
 
@@ -135,7 +136,7 @@ def load_pretrained_at_model(checkpoint_path):
     return model
 '''
 
-def load_pretrained_model(model_name, checkpoint_path, freeze):
+def load_pretrained_model(model_type, checkpoint_path, freeze):
     r"""Load pretrained audio tagging model.
 
     Args:
@@ -144,7 +145,16 @@ def load_pretrained_model(model_name, checkpoint_path, freeze):
     Returns:
         at_model: nn.Module
     """
-    model = eval(model_name)(sample_rate=32000, window_size=1024, hop_size=320, 
+    if model_type == "Cnn14":
+        Model = Cnn14
+    
+    elif model_type == "Cnn14_DecisionLevelMax":
+        Model = Cnn14_DecisionLevelMax
+
+    else:
+        raise NotImplementedError
+    
+    model = Model(sample_rate=32000, window_size=1024, hop_size=320, 
         mel_bins=64, fmin=50, fmax=14000, classes_num=527)
     
     if checkpoint_path:
@@ -156,6 +166,46 @@ def load_pretrained_model(model_name, checkpoint_path, freeze):
             param.requires_grad = False
 
     return model
+
+
+# def initialize_query_net(configs):
+#     r"""Load pretrained audio tagging model.
+
+#     Args:
+#         at_checkpoint_path: str
+
+#     Returns:
+#         at_model: nn.Module
+#     """
+#     model_type = configs["query_net"]["model_type"]
+
+#     if model_type == "Cnn14":
+#         model = load_pretrained_model(
+#             model_type=configs["query_net"]["model_type"], 
+#             checkpoint_path=configs["query_net"]["checkpoint_path"], 
+#             freeze=configs["query_net"]["freeze"], 
+#         )
+
+#     elif model_type == "AdaptiveCnn14":
+
+#         base = load_pretrained_model(
+#             model_name="Cnn14",
+#             checkpoint_path=checkpoint_path,
+#             freeze=configs["audio_tagging"]["at_checkpoint_path"],
+#         )
+
+#         model = AdaptiveCnn14(
+#             base=base,
+#             condition_type=configs["data"]["condition_type"],
+#             condition_size=configs["data"]["condition_size"],
+#             at_checkpoint_path=configs["audio_tagging"]["at_checkpoint_path"],
+#         )
+
+#     else:
+#         raise NotImplementedError
+    
+#     return model
+
 
 def energy(x):
     return torch.mean(x ** 2)
@@ -186,16 +236,19 @@ def calculate_sdr(ref, est):
     return sdr
 '''
 
-def calculate_sdr(ref, est):
+def calculate_sdr(ref, est, eps=1e-10):
     
-    eps = 1e-10
-
     noise = est - ref
-    sdr = 10. * np.log10(np.sum(ref ** 2) / (np.sum(noise ** 2) + eps))
 
+    numerator = np.clip(a=np.mean(ref ** 2), a_min=eps, a_max=None)
+    
+    denominator = np.clip(a=np.mean(noise ** 2), a_min=eps, a_max=None)
+
+    sdr = 10. * np.log10(numerator / denominator)
+    
     return sdr
 
-
+'''
 def calculate_sisdr(ref, est):
     
     eps = 1e-8
@@ -205,7 +258,7 @@ def calculate_sisdr(ref, est):
     sdr = 10. * np.log10(np.sum(ref ** 2) / (np.sum(noise ** 2) + eps) + eps)
 
     return sdr
-
+'''
 
 def calculate_sdr_segmentwise(references, estimates, win, hop):
     pointer = 0
@@ -236,6 +289,33 @@ def fix_length(audio, segment_samples):
     repeats_num = (segment_samples // audio.shape[-1]) + 1
     audio = np.tile(audio, repeats_num)[0 : segment_samples]
     return audio
+
+
+class StatisticsContainer(object):
+    def __init__(self, statistics_path):
+        self.statistics_path = statistics_path
+
+        self.backup_statistics_path = "{}_{}.pkl".format(
+            os.path.splitext(self.statistics_path)[0],
+            datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+        )
+
+        self.statistics_dict = {"balanced_train": [], "test": []}
+
+    def append(self, steps, statistics, split, flush=True):
+        statistics["steps"] = steps
+        self.statistics_dict[split].append(statistics)
+
+        if flush:
+            self.flush()
+
+    def flush(self):
+        pickle.dump(self.statistics_dict, open(self.statistics_path, "wb"))
+        pickle.dump(self.statistics_dict, open(self.backup_statistics_path, "wb"))
+        logging.info("    Dump statistics to {}".format(self.statistics_path))
+        logging.info("    Dump statistics to {}".format(self.backup_statistics_path))
+
+
 
 '''
 def do_wiener(mixture, output_dict):

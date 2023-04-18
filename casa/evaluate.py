@@ -17,22 +17,22 @@ from casa.config import IX_TO_LB
 
 
 class AudioSetEvaluator:
-    def __init__(self, pl_model, audios_dir, classes_num, max_eval_per_class=None):
+    def __init__(self, audios_dir, classes_num, max_eval_per_class=None):
 
-        self.pl_model = pl_model
+        # self.pl_model = pl_model
         self.audios_dir = audios_dir
         self.classes_num = classes_num
         self.max_eval_per_class = max_eval_per_class
 
     @torch.no_grad()
-    def __call__(self):
+    def __call__(self, pl_model):
 
         sdrs_dict = {class_id: [] for class_id in range(self.classes_num)}
         sdris_dict = {class_id: [] for class_id in range(self.classes_num)}
 
         for class_id in range(self.classes_num):
 
-            sub_dir = os.path.join(self.audios_dir, "classid={}".format(class_id))            
+            sub_dir = os.path.join(self.audios_dir, "class_id={}".format(class_id))            
 
             audio_names = self._get_audio_names(audios_dir=sub_dir)
 
@@ -49,19 +49,19 @@ class AudioSetEvaluator:
 
                 sdr_no_sep = calculate_sdr(ref=source, est=mixture)
                 
-                device = self.pl_model.device
+                device = pl_model.device
                 
-                conditions = self.pl_model.query_condition_extractor(
-                    segments=torch.Tensor(source)[None, :].to(device),
-                )
+                conditions = pl_model.query_net(
+                    source=torch.Tensor(source)[None, :].to(device),
+                )['output']
                 
                 input_dict = {
                     'mixture': torch.Tensor(mixture)[None, None, :].to(device),
                     'condition': conditions,
                 }
 
-                self.pl_model.eval()
-                sep_segment = self.pl_model.ss_model(input_dict)['waveform']
+                pl_model.eval()
+                sep_segment = pl_model.ss_model(input_dict)['waveform']
                 sep_segment = sep_segment.squeeze().data.cpu().numpy()
 
                 sdr = calculate_sdr(ref=source, est=sep_segment)
@@ -88,6 +88,12 @@ class AudioSetEvaluator:
         audio_names = sorted(list(set(audio_names)))
 
         return audio_names
+
+    @staticmethod
+    def get_median_metrics(stats_dict, metric_type):
+        class_ids = stats_dict[metric_type].keys()
+        median_stats_dict = {class_id: np.nanmedian(stats_dict[metric_type][class_id]) for class_id in class_ids}
+        return median_stats_dict
 
 
 def add2():

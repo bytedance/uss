@@ -1,5 +1,6 @@
 
 WORKSPACE="/home/tiger/workspaces/casa"
+WORKSPACE="./workspaces/casa"
 
 ./scripts/0_download_checkpoints.sh
 
@@ -11,12 +12,17 @@ WORKSPACE="/home/tiger/workspaces/casa"
 
 for SPLIT in "balanced_train" "test"
 do
-    CUDA_VISIBLE_DEVICES=0 python3 casa/dataset_creation/create_audioset_evaluation_meta.py create_evaluation_meta \
+    CUDA_VISIBLE_DEVICES=1 python3 casa/dataset_creation/create_audioset_evaluation_meta.py create_evaluation_meta \
         --workspace=$WORKSPACE \
         --split=$SPLIT \
         --output_audios_dir="${WORKSPACE}/evaluation/audioset/2s_segments_${SPLIT}" \
         --output_meta_csv_path="${WORKSPACE}/evaluation/audioset/2s_segments_${SPLIT}.csv"
 done
+
+# # Combine balanced and unbalanced training indexes to a full training indexes hdf5
+# python3 casa/dataset_creation/create_indexes.py combine_full_indexes \
+#     --indexes_hdf5s_dir=$WORKSPACE"/hdf5s/indexes" \
+#     --full_indexes_hdf5_path=$WORKSPACE"/hdf5s/indexes/full_train.h5"
 
 CUDA_VISIBLE_DEVICES=1 python3 casa/train.py \
     --workspace=$WORKSPACE \
@@ -30,4 +36,4 @@ python3 casa/plot.py
 CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
-    --checkpoint_path="/home/tiger/workspaces/casa/checkpoints/train/config=01b,devices=1/step=300000.ckpt"
+    --checkpoint_path="./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"

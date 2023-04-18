@@ -10,6 +10,8 @@ class QueryConditionExtractor(nn.Module):
     ):
         super(QueryConditionExtractor, self).__init__()
 
+        assert condition_type in ["embedding", "at_soft"]
+
         self.at_model = at_model
         self.condition_type = condition_type
 

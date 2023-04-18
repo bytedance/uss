@@ -12,6 +12,8 @@ from casa.data.query_condition_extractors import QueryConditionExtractor
 from casa.models.pl_modules import LitSeparation
 from casa.models.resunet import *
 
+from torch.utils.tensorboard import SummaryWriter
+
 
 class AudiosetEvaluator:
     def __init__(self, pl_model, audios_dir, classes_num, max_eval_per_class=None):
@@ -157,6 +159,30 @@ def add2():
 
     evaluator()
 
+
+def add3():
+    
+    writer = SummaryWriter(log_dir="_tmp/exp1")
+
+    for i in range(10):
+        writer.add_scalar('Loss/train', global_step=i, scalar_value=i * 2)
+        writer.add_scalar('Loss/test', global_step=i, scalar_value=i * 3)
+        
+
+
+def add4(): 
+    from tensorboard.backend.event_processing import event_accumulator
+
+    ea = event_accumulator.EventAccumulator('/home/tiger/my_code_2019.12-/python/audioset_source_separation/workspaces/casa/tf_logs/train/config=01a,devices=1/events.out.tfevents.1681729002.n130-020-141.1680684.0')
+
+    ea.Reload()
+    tags = ea.Tags()
+    # values = ea.Scalars('SDRi/test')
+
+    from IPython import embed; embed(using=False); os._exit(0)
+    
+
+
 if __name__ == '__main__':
 
-    add2()
+    add4()

@@ -1,5 +1,6 @@
 import os
 import lightning.pytorch as pl
+from lightning.pytorch.utilities import rank_zero_only
 
 
 class CheckpointEveryNSteps(pl.Callback):
@@ -24,6 +25,7 @@ class CheckpointEveryNSteps(pl.Callback):
         self.checkpoints_dir = checkpoints_dir
         self.save_step_frequency = save_step_frequency
 
+    @rank_zero_only
     def on_train_batch_end(self, *args, **kwargs):
         """ Check if we should save a checkpoint after every train batch """
         trainer = args[0]

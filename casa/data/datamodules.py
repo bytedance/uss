@@ -86,11 +86,6 @@ class DataModule(pl.LightningDataModule):
         # return DataLoader(test_split)
         pass
 
-    def teardown(self):
-        # clean up after fit or test
-        # called on every process in DDP
-        pass
-
 
 def collate_fn(list_data_dict):
     r"""Collate mini-batch data to inputs and targets for training.

@@ -31,7 +31,21 @@ def add():
 
     # from IPython import embed; embed(using=False); os._exit(0)
 
+def add2():
+
+    stat_path = "./workspaces/casa/statistics/train/config=01a,devices=1/statistics.pkl"
+    stats_dict = pickle.load(open(stat_path, 'rb'))
+
+    sdris = []
+
+    for i, stats in enumerate(stats_dict['test']):
+        sdri = np.nanmean(list(stats["sdri_dict"].values()))
+        sdris.append(sdri)
+        # sdri = np.mean(list(stats.values()))
+
+    from IPython import embed; embed(using=False); os._exit(0)
+
 
 if __name__ == '__main__':
 
-    add()
+    add2()

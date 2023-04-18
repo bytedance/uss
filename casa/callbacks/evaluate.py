@@ -1,7 +1,14 @@
 import os
 import lightning.pytorch as pl
+from lightning.pytorch.utilities import rank_zero_only
 
 from casa.evaluate import AudioSetEvaluator
+from casa.utils import StatisticsContainer
+from torch.utils.tensorboard import SummaryWriter
+
+import numpy as np
+import logging
+
 
 
 class EvaluateCallback(pl.Callback):
@@ -19,6 +26,8 @@ class EvaluateCallback(pl.Callback):
         classes_num,
         max_eval_per_class,
         evaluate_step_frequency,
+        summary_writer,
+        statistics_path,
     ):
         """
         Args:
@@ -31,21 +40,28 @@ class EvaluateCallback(pl.Callback):
         # self.evaluator = evaluator
 
         self.balanced_train_evaluator = AudioSetEvaluator(
-            pl_model=pl_model, 
+            # pl_model=pl_model, 
             audios_dir=balanced_train_eval_dir, 
             classes_num=classes_num, 
             max_eval_per_class=max_eval_per_class,
         )
 
         self.test_evaluator = AudioSetEvaluator(
-            pl_model=pl_model, 
+            # pl_model=pl_model, 
             audios_dir=test_eval_dir, 
             classes_num=classes_num, 
             max_eval_per_class=max_eval_per_class,
         )
 
+        self.pl_model = pl_model
+
         self.evaluate_step_frequency = evaluate_step_frequency
 
+        self.summary_writer = summary_writer
+
+        self.statistics_container = StatisticsContainer(statistics_path)
+
+    @rank_zero_only
     def on_train_batch_end(self, *args, **kwargs):
         """ Check if we should save a checkpoint after every train batch """
         trainer = args[0]
@@ -53,7 +69,25 @@ class EvaluateCallback(pl.Callback):
         global_step = trainer.global_step
 
         if global_step == 1 or global_step % self.evaluate_step_frequency == 0:
-            
-            balanced_train_stats_dict = self.balanced_train_evaluator()
-            test_stats_dict = self.test_evaluator()
-            # from IPython import embed; embed(using=False); os._exit(0)
+
+            for split, evaluator in zip(["balanced_train", "test"], [self.balanced_train_evaluator, self.test_evaluator]):
+
+                stats_dict = evaluator(pl_model=self.pl_model)
+
+                median_sdris_dict = AudioSetEvaluator.get_median_metrics(
+                    stats_dict=stats_dict, 
+                    metric_type="sdris_dict",
+                )
+
+                sdri = np.nanmean(list(median_sdris_dict.values()))
+
+                self.summary_writer.add_scalar("SDRi/{}".format(split), global_step=global_step, scalar_value=sdri)
+
+                logging.info("    Flush tensorboard logs to {}".format(self.summary_writer.log_dir))
+
+                self.statistics_container.append(
+                    steps=global_step, 
+                    statistics={"sdri_dict": median_sdris_dict}, 
+                    split=split,
+                    flush=True,
+                )            

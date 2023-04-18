@@ -1,3 +1,5 @@
+import random
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,7 +13,7 @@ class AnchorSegmentScorer(nn.Module):
 
         self.segment_frames = segment_frames
 
-        filter_len = self.segment_frames + 1
+        filter_len = self.segment_frames
         self.register_buffer('smooth_filter', torch.ones(1, 1, filter_len) / filter_len)
 
     def __call__(self, x):
@@ -51,6 +53,7 @@ class AnchorSegmentDetector(nn.Module):
         segment_seconds: float,
         frames_per_second: int,
         sample_rate: float,
+        detect_mode: str,
     ):
         r"""Input a batch of 10-second audio clips, select 2-second anchor 
         segments for creating mixtures. Selected anchor segments will have 
@@ -65,10 +68,13 @@ class AnchorSegmentDetector(nn.Module):
         """
         super(AnchorSegmentDetector, self).__init__()
 
+        assert detect_mode in ["max_area", "random"]
+
         self.sed_model = sed_model
         self.clip_frames = int(clip_seconds * frames_per_second)
-        self.segment_frames = int(segment_seconds * frames_per_second)
+        self.segment_frames = int(segment_seconds * frames_per_second + 1)
         self.hop_samples = sample_rate // frames_per_second
+        self.detect_mode = detect_mode
         # self.clip_samples = clip_samples
         # self.augmentor = augmentor
         # self.condition_type = condition_type
@@ -76,7 +82,7 @@ class AnchorSegmentDetector(nn.Module):
 
         # # Smooth filter to smooth sound event detection result.
         self.anchor_segment_scorer = AnchorSegmentScorer(
-            segment_frames=self.segment_frames
+            segment_frames=self.segment_frames,
         )
 
         # opt_thres = pickle.load(open('opt_thres.pkl', 'rb'))
@@ -141,22 +147,34 @@ class AnchorSegmentDetector(nn.Module):
 
             # Smoothed probability, equivalent to the area of probability in 
             # anchor segments.
-            anchor_segment_scores = self.anchor_segment_scorer(prob_array)
+            if self.detect_mode == "max_area":
+                anchor_segment_scores = self.anchor_segment_scorer(prob_array)
 
-            if False:
-                import soundfile
-                soundfile.write(file='_zz{}.wav'.format(n), data=waveforms[n].data.cpu().numpy(), samplerate=32000)
-                import matplotlib.pyplot as plt
-                from casa.config import IX_TO_LB
-                plt.figure()
-                plt.plot(anchor_segment_scores.data.cpu().numpy())
-                plt.title(IX_TO_LB[class_id])
-                plt.ylim(0, 1)
-                plt.savefig('_zz{}.pdf'.format(n))
+                # Find out the frame with the highest probability. This frames is
+                # the centre frame of an anchor segment.
+                anchor_index = torch.argmax(anchor_segment_scores)
 
-            # Find out the frame with the highest probability. This frames is
-            # the centre frame of an anchor segment.
-            anchor_index = torch.argmax(anchor_segment_scores)
+                if False:
+                    import soundfile
+                    soundfile.write(file='_zz{}.wav'.format(n), data=waveforms[n].data.cpu().numpy(), samplerate=32000)
+                    import matplotlib.pyplot as plt
+                    from casa.config import IX_TO_LB
+                    plt.figure()
+                    plt.plot(anchor_segment_scores.data.cpu().numpy())
+                    plt.title(IX_TO_LB[class_id])
+                    plt.ylim(0, 1)
+                    plt.savefig('_zz{}.pdf'.format(n))
+
+            elif self.detect_mode == "random":
+                anchor_index = random.randint(0, self.segment_frames - 1)
+                anchor_index = torch.tensor(anchor_index).to(waveforms.device)
+                
+            else:
+                raise NotImplementedError
+
+            # from IPython import embed; embed(using=False); os._exit(0)
+
+            
             
             # Get begin and end samples of an anchor segment.
             bgn_sample, end_sample = self.get_segment_bgn_end_samples(
