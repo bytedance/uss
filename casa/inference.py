@@ -7,6 +7,7 @@ import pickle
 import json
 import soundfile
 import argparse
+import matplotlib.pyplot as plt
 
 from casa.utils import calculate_sdr
 from casa.utils import create_logging, read_yaml, load_pretrained_model #, 
@@ -233,8 +234,6 @@ def separate_by_query_conditions(audio, segment_samples, at_probs, subclass_inde
 
     while pointer < audio_samples:
 
-        print(at_probs[segment_index, subclass_indexes].shape)
-        # condition = np.zeros(classes_num)
         max_prob = np.max(at_probs[segment_index, subclass_indexes])
 
         if max_prob < at_threshold:
@@ -356,11 +355,16 @@ def separate(args):
 
         nodes_level_n = get_nodes_with_level_n(nodes=nodes, level=level)
 
+        hierarchy_at_probs = []
+
         for node in nodes_level_n:
 
             class_id = node.class_id
 
             subclass_indexes = get_children_indexes(node=node)
+
+            if len(subclass_indexes) == 0:
+                continue
 
             sep_audio = separate_by_query_conditions(
                 audio=audio, 
@@ -377,12 +381,19 @@ def separate(args):
             label = audioset632_id_to_lb[class_id]
             output_path = os.path.join(output_dir, "level={}".format(level), "{}.wav".format(label))
 
-            if np.max(audio) > non_sil_threshold:
+            if np.max(sep_audio) > non_sil_threshold:
                 write_audio(
                     audio=sep_audio,
                     output_path=output_path,
                     sample_rate=sample_rate,
                 )
+
+            hierarchy_at_prob = np.max(at_probs[:, subclass_indexes], axis=-1)
+            hierarchy_at_probs.append(hierarchy_at_prob)
+
+        hierarchy_at_probs = np.stack(hierarchy_at_probs, axis=-1)
+        plt.matshow(hierarchy_at_probs.T, origin='lower', aspect='auto', cmap='jet')
+        plt.savefig('_zz_{}.pdf'.format(level))
             
 
 if __name__ == '__main__':

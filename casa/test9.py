@@ -181,8 +181,15 @@ def add4():
 
     from IPython import embed; embed(using=False); os._exit(0)
     
+from typing import List, NoReturn
+def sub() -> NoReturn:
+    raise Exception
 
+
+def add5():
+    a1 = sub()
+    from IPython import embed; embed(using=False); os._exit(0)
 
 if __name__ == '__main__':
 
-    add4()
+    add5()

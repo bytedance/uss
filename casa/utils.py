@@ -4,6 +4,7 @@ import yaml
 import datetime
 import pickle
 import sys
+from typing import Dict
 
 import librosa
 import torch
@@ -50,7 +51,15 @@ def int16_to_float32(x):
     return (x / 32767.0).astype(np.float32)
 
 
-def read_yaml(config_yaml):
+def parse_yaml(config_yaml: str) -> Dict:
+    r"""Parse yaml file.
+
+    Args:
+        config_yaml (str): config yaml path
+
+    Returns:
+        yaml_dict (Dict): parsed yaml file
+    """
     with open(config_yaml, "r") as fr:
         return yaml.load(fr, Loader=yaml.FullLoader)
 
@@ -136,14 +145,20 @@ def load_pretrained_at_model(checkpoint_path):
     return model
 '''
 
-def load_pretrained_model(model_type, checkpoint_path, freeze):
-    r"""Load pretrained audio tagging model.
+def load_pretrained_panns(
+    model_type: str, 
+    checkpoint_path: str, 
+    freeze: bool
+) -> nn.Module:
+    r"""Load pretrained pretrained audio neural networks (PANNs).
 
     Args:
-        at_checkpoint_path: str
+        model_type: str, e.g., "Cnn14"
+        checkpoint_path, str, e.g., "Cnn14_mAP=0.431.pth"
+        freeze: bool
 
     Returns:
-        at_model: nn.Module
+        model: nn.Module
     """
     if model_type == "Cnn14":
         Model = Cnn14

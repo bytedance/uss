@@ -2,163 +2,47 @@ import argparse
 import logging
 import os
 import pathlib
-from torch.utils.data import BatchSampler
-from typing import List, NoReturn
+from typing import List
+
 import lightning.pytorch as pl
+import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from casa.data.datasets import Dataset
-from casa.utils import create_logging, read_yaml, load_pretrained_model
-from casa.models.query_nets import initialize_query_net
-from casa.data.samplers import BalancedSampler
-from casa.data.datamodules import DataModule
-from casa.models.resunet import *
-from casa.losses import get_loss_function
-from casa.models.pl_modules import LitSeparation, get_model_class
-from casa.data.anchor_segment_detectors import AnchorSegmentDetector
-from casa.data.anchor_segment_mixers import AnchorSegmentMixer
-from casa.data.query_condition_extractors import QueryConditionExtractor
 from casa.callbacks.base import CheckpointEveryNSteps
 from casa.callbacks.evaluate import EvaluateCallback
-from casa.config import FRAMES_PER_SECOND, CLIP_SECONDS
+from casa.config import CLIP_SECONDS, FRAMES_PER_SECOND
+from casa.data.anchor_segment_detectors import AnchorSegmentDetector
+from casa.data.anchor_segment_mixers import AnchorSegmentMixer
+from casa.data.datamodules import DataModule
+from casa.data.datasets import Dataset
+from casa.data.samplers import BalancedSampler
+from casa.losses import get_loss_function
+from casa.models.pl_modules import LitSeparation, get_model_class
+from casa.models.query_nets import initialize_query_net
 from casa.optimizers.lr_schedulers import get_lr_lambda
+from casa.utils import create_logging, load_pretrained_panns, parse_yaml
 
 
-def get_dirs(workspace: str, filename: str, config_yaml: str, devices_num: int) -> List[str]:
-    r"""Get directories.
-
-    Args:
-        workspace: str
-        filenmae: str
-        config_yaml: str
-        gpus: int, e.g., 0 for cpu and 8 for training with 8 gpu cards
-
-    Returns:
-        checkpoints_dir: str
-        logs_dir: str
-        logger: pl.loggers.TensorBoardLogger
-        statistics_path: str
-    """
-    yaml_name = pathlib.Path(config_yaml).stem
-
-    # save checkpoints dir
-    checkpoints_dir = os.path.join(
-        workspace,
-        "checkpoints",
-        filename,
-        "config={},devices={}".format(yaml_name, devices_num),
-    )
-    os.makedirs(checkpoints_dir, exist_ok=True)
-
-    # logs dir
-    logs_dir = os.path.join(
-        workspace,
-        "logs",
-        filename,
-        "config={},devices={}".format(yaml_name, devices_num),
-    )
-    os.makedirs(logs_dir, exist_ok=True)
-
-    # loggings
-    create_logging(logs_dir, filemode="w")
-    logging.info(args)
-
-    tf_logs_dir = os.path.join(
-        workspace,
-        "tf_logs",
-        filename,
-        "config={},devices={}".format(yaml_name, devices_num),
-    )
-
-    # statistics path
-    statistics_path = os.path.join(
-        workspace,
-        "statistics",
-        filename,
-        "config={},devices={}".format(yaml_name, devices_num),
-        "statistics.pkl",
-    )
-    os.makedirs(os.path.dirname(statistics_path), exist_ok=True)
-
-    return checkpoints_dir, logs_dir, tf_logs_dir, statistics_path
- 
-
-def get_datamodule(
-    workspace: str, config_yaml: str, num_workers: int, devices_num: int,
-) -> DataModule:
-    r"""Create data_module. Mini-batch data can be obtained by:
-
-    code-block:: python
-
-        data_module.setup()
-
-        for batch_data_dict in data_module.train_dataloader():
-            print(batch_data_dict.keys())
-            break
-
-    Args:
-        workspace: str
-        config_yaml: str
-        num_workers: int, e.g., 0 for non-parallel and 8 for using cpu cores
-            for preparing data in parallel
-        distributed: bool
-
-    Returns:
-        data_module: DataModule
-    """
-
-    # read configurations
-    configs = read_yaml(config_yaml)
-    indexes_hdf5_path = os.path.join(workspace, configs['data']['indexes_dict'])
-    batch_size = configs['train']['batch_size_per_device'] * devices_num
-    steps_per_epoch = configs['train']['steps_per_epoch']
-
-    # dataset
-    train_dataset = Dataset(
-        steps_per_epoch=steps_per_epoch,
-    )
-
-    # sampler
-    train_sampler = BalancedSampler(
-        indexes_hdf5_path=indexes_hdf5_path,
-        batch_size=batch_size,
-        steps_per_epoch=steps_per_epoch,
-    )
-
-    # data module
-    data_module = DataModule(
-        train_sampler=train_sampler,
-        train_dataset=train_dataset,
-        num_workers=num_workers,
-    )
-
-    # data_module.setup()
-    # for batch_data_dict in data_module.train_dataloader():
-    #     # print(batch_data_dict.keys())
-    #     # batch_data_dict['audio_name']
-    # from IPython import embed; embed(using=False); os._exit(0)
-
-    return data_module
-
-
-
-def train(args) -> NoReturn:
+def train(args) -> None:
     r"""Train, evaluate, and save checkpoints.
 
     Args:
-        workspace: str, directory of workspace
-        gpus: int, number of GPUs to train
-        config_yaml: str
+        workspace (str): directory of workspace
+        config_yaml (str): config yaml path
+
+    Returns:
+        None
     """
 
-    # arguments & parameters
+    # Arguments & parameters
     workspace = args.workspace
     config_yaml = args.config_yaml
     filename = args.filename
 
+    # GPUs number
     devices_num = torch.cuda.device_count()
 
-    # Read config file.
+    # Read config file
     configs = read_yaml(config_yaml)
 
     clip_seconds = CLIP_SECONDS
@@ -173,8 +57,6 @@ def train(args) -> NoReturn:
     input_channels = configs['ss_model']['input_channels']
     output_channels = configs['ss_model']['output_channels']
     condition_size = configs['query_net']['outputs_num']
-    # condition_size = configs['data']['condition_size']
-    # condition_type = configs['data']['condition_type']
 
     num_workers = configs['train']['num_workers']
     loss_type = configs['train']['loss_type']
@@ -186,25 +68,17 @@ def train(args) -> NoReturn:
 
     save_step_frequency = configs['train']['save_step_frequency']
     evaluate_step_frequency = configs['train']['evaluate_step_frequency']
+    # resume_checkpoint_path =
 
-    balanced_train_eval_dir = os.path.join(workspace, configs["evaluate"]["balanced_train_eval_dir"])
-    test_eval_dir = os.path.join(workspace, configs["evaluate"]["test_eval_dir"])
+    balanced_train_eval_dir = os.path.join(
+        workspace, configs["evaluate"]["balanced_train_eval_dir"])
+    test_eval_dir = os.path.join(
+        workspace, configs["evaluate"]["test_eval_dir"])
     max_eval_per_class = configs["evaluate"]["max_eval_per_class"]
 
     # # paths
     checkpoints_dir, logs_dir, tf_logs_dir, statistics_path = get_dirs(
         workspace, filename, config_yaml, devices_num,
-    )
-
-    # # Load pretrained sound event detection and audio tagging model.
-    sed_model = load_pretrained_model(
-        model_type=configs['sound_event_detection']['model_type'],
-        checkpoint_path=configs['sound_event_detection']['checkpoint_path'],
-        freeze=configs['sound_event_detection']['freeze'],
-    )
-
-    query_net = initialize_query_net(
-        configs=configs,
     )
 
     # data module
@@ -214,7 +88,19 @@ def train(args) -> NoReturn:
         num_workers=num_workers,
         devices_num=devices_num,
     )
-    
+
+    # Load pretrained sound event detection model.
+    sed_model = load_pretrained_panns(
+        model_type=configs['sound_event_detection']['model_type'],
+        checkpoint_path=configs['sound_event_detection']['checkpoint_path'],
+        freeze=configs['sound_event_detection']['freeze'],
+    )
+
+    # Load query net.
+    query_net = initialize_query_net(
+        configs=configs,
+    )
+
     # model
     SsModel = get_model_class(model_type=ss_model_type)
 
@@ -239,13 +125,6 @@ def train(args) -> NoReturn:
     anchor_segment_mixer = AnchorSegmentMixer(
         mix_num=mix_num,
     )
-
-    '''
-    query_condition_extractor = QueryConditionExtractor(
-        query_net=query_net,
-        condition_type=condition_type,
-    )
-    '''
 
     lr_lambda_func = get_lr_lambda(
         lr_lambda_type=lr_lambda_type,
@@ -308,12 +187,139 @@ def train(args) -> NoReturn:
 
     # Fit, evaluate, and save checkpoints.
     trainer.fit(
-        model=pl_model, 
+        model=pl_model,
         train_dataloaders=None,
         val_dataloaders=None,
         datamodule=datamodule,
-        ckpt_path=None,
+        # ckpt_path=None,
+        ckpt_path="./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"
     )
+
+
+
+def get_dirs(
+        workspace: str,
+        filename: str,
+        config_yaml: str,
+        devices_num: int) -> List[str]:
+    r"""Get directories.
+
+    Args:
+        workspace: str
+        filenmae: str
+        config_yaml: str
+        gpus: int, e.g., 0 for cpu and 8 for training with 8 gpu cards
+
+    Returns:
+        checkpoints_dir: str
+        logs_dir: str
+        logger: pl.loggers.TensorBoardLogger
+        statistics_path: str
+    """
+    yaml_name = pathlib.Path(config_yaml).stem
+
+    # save checkpoints dir
+    checkpoints_dir = os.path.join(
+        workspace,
+        "checkpoints",
+        filename,
+        "config={},devices={}".format(yaml_name, devices_num),
+    )
+    os.makedirs(checkpoints_dir, exist_ok=True)
+
+    # logs dir
+    logs_dir = os.path.join(
+        workspace,
+        "logs",
+        filename,
+        "config={},devices={}".format(yaml_name, devices_num),
+    )
+    os.makedirs(logs_dir, exist_ok=True)
+
+    # loggings
+    create_logging(logs_dir, filemode="w")
+    logging.info(args)
+
+    tf_logs_dir = os.path.join(
+        workspace,
+        "tf_logs",
+        filename,
+        "config={},devices={}".format(yaml_name, devices_num),
+    )
+
+    # statistics path
+    statistics_path = os.path.join(
+        workspace,
+        "statistics",
+        filename,
+        "config={},devices={}".format(yaml_name, devices_num),
+        "statistics.pkl",
+    )
+    os.makedirs(os.path.dirname(statistics_path), exist_ok=True)
+
+    return checkpoints_dir, logs_dir, tf_logs_dir, statistics_path
+
+
+def get_datamodule(
+    workspace: str, 
+    config_yaml: str, 
+    num_workers: int, 
+    devices_num: int,
+) -> DataModule:
+    r"""Create a datamodule to yield mini-batches of data.
+
+    Args:
+        workspace (str): directory of workspace
+        config_yaml (str): config yaml path
+        num_workers (int): e.g., 16 for using multiple cpu cores for preparing 
+            data in parallel
+        devices_num (int): the number of GPUs to run
+
+    Returns:
+        datamodule: DataModule
+
+    Examples::
+
+        >>> data_module.setup()
+        >>> for batch_data_dict in datamodule.train_dataloader():
+        >>>    print(batch_data_dict.keys())
+        >>>    break
+    """
+
+    # Read configs
+    configs = parse_yaml(config_yaml)
+    indexes_hdf5_path = os.path.join(workspace, configs['data']['indexes_dict'])
+    batch_size = configs['train']['batch_size_per_device'] * devices_num
+    steps_per_epoch = configs['train']['steps_per_epoch']
+
+    # dataset
+    train_dataset = Dataset(
+        steps_per_epoch=steps_per_epoch,
+    )
+
+    # sampler
+    train_sampler = BalancedSampler(
+        indexes_hdf5_path=indexes_hdf5_path,
+        batch_size=batch_size,
+        steps_per_epoch=steps_per_epoch,
+    )
+
+    # data module
+    data_module = DataModule(
+        train_sampler=train_sampler,
+        train_dataset=train_dataset,
+        num_workers=num_workers,
+    )
+
+    # data_module.setup()
+    # for batch_data_dict in data_module.train_dataloader():
+    #     # print(batch_data_dict.keys())
+    #     # batch_data_dict['audio_name']
+    # from IPython import embed; embed(using=False); os._exit(0)
+
+    return data_module
+
+
 
 
 if __name__ == "__main__":

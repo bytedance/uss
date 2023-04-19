@@ -7,18 +7,17 @@ sound_event_detection:
     freeze: True
 
 query_net:
-    model_type: AdaptiveCnn14_Wrapper
-    # model_type: YourOwn_QueryNet
+    model_type: Cnn14_Wrapper
     base_checkpoint_path: "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
     freeze_base: True
-    freeze_adaptor: True
+    freeze_adaptor: False
     bottleneck_type: at_soft  # "embedding" | "at_soft"
-    outputs_num: 2048
+    outputs_num: 527
 
 data:
     indexes_dict: "hdf5s/indexes/balanced_train.h5"
     sampler_type: balanced_sampler
-    anchor_segment_detect_mode: random  # "max_area" | "random"
+    anchor_segment_detect_mode: max_area  # "max_area" | "random"
     sample_rate: 32000
     frames_per_second: 100
     segment_seconds: 2.0
@@ -34,27 +33,25 @@ ss_model:
     model_type: ResUNet30
     input_channels: 1
     output_channels: 1
-    resume_checkpoint: ""
+    # resume_checkpoint: "./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"
 
 train:
     num_workers: 0
-    loss_type: l1_wav_l1_sp
+    loss_type: l1_wav
     optimizer:
         optimizer_type: AdamW
         learning_rate: 1e-3
-        # lr_lambda_type: constant_warm_up
-        lr_lambda_type: linear_warm_up
+        lr_lambda_type: constant_warm_up    # linear_warm_up
         warm_up_steps: 10000
         reduce_lr_steps: 1000000
     batch_size_per_device: 16
     precision: 32
     steps_per_epoch: 10000  # Every 10000 steps is called an `epoch`.
-    # evaluate_step_frequency: 20000     # Evaluate every #evaluate_step_frequency steps.
-    evaluate_step_frequency: 100     # Evaluate every #evaluate_step_frequency steps.
+    evaluate_step_frequency: 20000     # Evaluate every #evaluate_step_frequency steps.
     save_step_frequency: 20000  # Save every #save_step_frequency steps.
-    # early_stop_steps: 10000001
+    early_stop_steps: 10000001
     random_seed: 1234
-
+    
 evaluate:
     balanced_train_eval_dir: "evaluation/audioset/2s_segments_balanced_train"
     test_eval_dir: "evaluation/audioset/2s_segments_test"
