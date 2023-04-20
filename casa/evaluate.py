@@ -6,7 +6,7 @@ import pathlib
 import pickle
 
 from casa.utils import calculate_sdr
-from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, 
+from casa.utils import create_logging, parse_yaml, load_pretrained_panns #, load_pretrained_sed_model, 
 
 from casa.data.anchor_segment_detectors import AnchorSegmentDetector
 from casa.data.anchor_segment_mixers import AnchorSegmentMixer
@@ -103,7 +103,7 @@ def add2():
     classes_num = 527
     device = 'cuda'
 
-    configs = read_yaml(config_yaml)
+    configs = parse_yaml(config_yaml)
 
     num_workers = configs['train']['num_workers']
     model_type = configs['model']['model_type']

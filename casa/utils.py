@@ -6,6 +6,7 @@ import pickle
 import sys
 from typing import Dict
 
+import torch.nn as nn
 import librosa
 import torch
 import numpy as np
@@ -42,12 +43,12 @@ def create_logging(log_dir, filemode):
     return logging
 
 
-def float32_to_int16(x):
+def float32_to_int16(x: float) -> int:
     x = np.clip(x, a_min=-1, a_max=1)
     return (x * 32767.0).astype(np.int16)
 
 
-def int16_to_float32(x):
+def int16_to_float32(x: int) -> float:
     return (x / 32767.0).astype(np.float32)
 
 

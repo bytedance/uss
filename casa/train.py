@@ -43,7 +43,7 @@ def train(args) -> None:
     devices_num = torch.cuda.device_count()
 
     # Read config file
-    configs = read_yaml(config_yaml)
+    configs = parse_yaml(config_yaml)
 
     clip_seconds = CLIP_SECONDS
     frames_per_second = FRAMES_PER_SECOND
@@ -68,7 +68,6 @@ def train(args) -> None:
 
     save_step_frequency = configs['train']['save_step_frequency']
     evaluate_step_frequency = configs['train']['evaluate_step_frequency']
-    # resume_checkpoint_path =
 
     balanced_train_eval_dir = os.path.join(
         workspace, configs["evaluate"]["balanced_train_eval_dir"])
@@ -76,12 +75,12 @@ def train(args) -> None:
         workspace, configs["evaluate"]["test_eval_dir"])
     max_eval_per_class = configs["evaluate"]["max_eval_per_class"]
 
-    # # paths
+    # Get directories and paths
     checkpoints_dir, logs_dir, tf_logs_dir, statistics_path = get_dirs(
         workspace, filename, config_yaml, devices_num,
     )
 
-    # data module
+    # Create a PyTorch Lightning datamodule
     datamodule = get_datamodule(
         workspace=workspace,
         config_yaml=config_yaml,
@@ -89,19 +88,19 @@ def train(args) -> None:
         devices_num=devices_num,
     )
 
-    # Load pretrained sound event detection model.
+    # Load pretrained sound event detection model
     sed_model = load_pretrained_panns(
         model_type=configs['sound_event_detection']['model_type'],
         checkpoint_path=configs['sound_event_detection']['checkpoint_path'],
         freeze=configs['sound_event_detection']['freeze'],
     )
 
-    # Load query net.
+    # Initialize query net.
     query_net = initialize_query_net(
         configs=configs,
     )
 
-    # model
+    # Initialize separation model
     SsModel = get_model_class(model_type=ss_model_type)
 
     ss_model = SsModel(
@@ -110,8 +109,8 @@ def train(args) -> None:
         condition_size=condition_size,
     )
 
-    # # loss function
-    loss_function = get_loss_function(loss_type)
+    # loss function
+    loss_function = get_loss_function(loss_type=loss_type)
 
     anchor_segment_detector = AnchorSegmentDetector(
         sed_model=sed_model,
@@ -192,33 +191,35 @@ def train(args) -> None:
         val_dataloaders=None,
         datamodule=datamodule,
         # ckpt_path=None,
-        ckpt_path="./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"
+        # ckpt_path="./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"
     )
 
 
 
 def get_dirs(
-        workspace: str,
-        filename: str,
-        config_yaml: str,
-        devices_num: int) -> List[str]:
-    r"""Get directories.
+    workspace: str,
+    filename: str,
+    config_yaml: str,
+    devices_num: int
+) -> List[str]:
+    r"""Get directories and paths.
 
     Args:
-        workspace: str
-        filenmae: str
-        config_yaml: str
-        gpus: int, e.g., 0 for cpu and 8 for training with 8 gpu cards
+        workspace (str): directory of workspace
+        filename (str): filename of current .py file.
+        config_yaml (str): config yaml path
+        devices_num (int): 0 for cpu and 8 for training with 8 GPUs
 
     Returns:
-        checkpoints_dir: str
-        logs_dir: str
-        logger: pl.loggers.TensorBoardLogger
-        statistics_path: str
+        checkpoints_dir (str): directory to save checkpoints
+        logs_dir (str), directory to save logs
+        tf_logs_dir (str), directory to save TensorBoard logs
+        statistics_path (str), directory to save statistics
     """
+
     yaml_name = pathlib.Path(config_yaml).stem
 
-    # save checkpoints dir
+    # Directory to save checkpoints
     checkpoints_dir = os.path.join(
         workspace,
         "checkpoints",
@@ -227,7 +228,7 @@ def get_dirs(
     )
     os.makedirs(checkpoints_dir, exist_ok=True)
 
-    # logs dir
+    # Directory to save logs
     logs_dir = os.path.join(
         workspace,
         "logs",
@@ -236,7 +237,7 @@ def get_dirs(
     )
     os.makedirs(logs_dir, exist_ok=True)
 
-    # loggings
+    # Directory to save TensorBoard logs
     create_logging(logs_dir, filemode="w")
     logging.info(args)
 
@@ -247,7 +248,7 @@ def get_dirs(
         "config={},devices={}".format(yaml_name, devices_num),
     )
 
-    # statistics path
+    # Directory to save statistics
     statistics_path = os.path.join(
         workspace,
         "statistics",
@@ -266,7 +267,7 @@ def get_datamodule(
     num_workers: int, 
     devices_num: int,
 ) -> DataModule:
-    r"""Create a datamodule to yield mini-batches of data.
+    r"""Create a PyTorch Lightning datamodule for yielding mini-batches of data.
 
     Args:
         workspace (str): directory of workspace
@@ -281,9 +282,9 @@ def get_datamodule(
     Examples::
 
         >>> data_module.setup()
-        >>> for batch_data_dict in datamodule.train_dataloader():
-        >>>    print(batch_data_dict.keys())
-        >>>    break
+        >>> for batch_data_dict in datamodule:
+        >>>     print(batch_data_dict.keys())
+        >>>     break
     """
 
     # Read configs
@@ -311,15 +312,7 @@ def get_datamodule(
         num_workers=num_workers,
     )
 
-    # data_module.setup()
-    # for batch_data_dict in data_module.train_dataloader():
-    #     # print(batch_data_dict.keys())
-    #     # batch_data_dict['audio_name']
-    # from IPython import embed; embed(using=False); os._exit(0)
-
     return data_module
-
-
 
 
 if __name__ == "__main__":

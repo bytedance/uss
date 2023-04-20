@@ -293,7 +293,8 @@ class LitSeparation(pl.LightningModule):
         # from IPython import embed; embed(using=False); os._exit(0)
     '''
 
-def get_model_class(model_type):
+def get_model_class(model_type: str) -> nn.Module:
+    
     if model_type == 'ResUNet30':
         from casa.models.resunet import ResUNet30
         return ResUNet30
