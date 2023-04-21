@@ -10,44 +10,42 @@ import numpy as np
 import logging
 
 
-
 class EvaluateCallback(pl.Callback):
-    """
-    Save a checkpoint every N steps, instead of Lightning's default that checkpoints
-    based on validation loss.
-    """
-
     def __init__(
         self,
-        # evaluator,
-        pl_model,
-        balanced_train_eval_dir,
-        test_eval_dir,
-        classes_num,
-        max_eval_per_class,
-        evaluate_step_frequency,
-        summary_writer,
-        statistics_path,
-    ):
-        """
-        Args:
-            save_step_frequency: how often to save in steps
-            prefix: add a prefix to the name, only used if
-                use_modelcheckpoint_filename=False
-            use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
-                default filename, don't use ours.
-        """
-        # self.evaluator = evaluator
+        pl_model: pl.LightningModule,
+        balanced_train_eval_dir: str,
+        test_eval_dir: str,
+        classes_num: int,
+        max_eval_per_class: int,
+        evaluate_step_frequency: int,
+        summary_writer: SummaryWriter,
+        statistics_path: str,
+    ) -> None:
+        """Evaluate on AudioSet separation.
 
+        Args:
+            pl_model (pl.LightningModule): universal source separation module
+            balanced_train_eval_dir (str): directory of balanced train set for evaluation
+            test_eval_dir (str): directory of test set for evaluation
+            classes_num (int): sound classes number
+            max_eval_per_class (int): the number of samples to evaluate for each sound class
+            evaluate_step_frequency (int): evaluate every N steps
+            summary_writer (SummaryWriter): used to write TensorBoard logs
+            statistics_path (str): path to write statistics
+
+        Returns:
+            None
+        """
+        
+        # Evaluators
         self.balanced_train_evaluator = AudioSetEvaluator(
-            # pl_model=pl_model, 
             audios_dir=balanced_train_eval_dir, 
             classes_num=classes_num, 
             max_eval_per_class=max_eval_per_class,
         )
 
         self.test_evaluator = AudioSetEvaluator(
-            # pl_model=pl_model, 
             audios_dir=test_eval_dir, 
             classes_num=classes_num, 
             max_eval_per_class=max_eval_per_class,
@@ -59,11 +57,13 @@ class EvaluateCallback(pl.Callback):
 
         self.summary_writer = summary_writer
 
+        # Statistics container
         self.statistics_container = StatisticsContainer(statistics_path)
 
     @rank_zero_only
     def on_train_batch_end(self, *args, **kwargs):
-        """ Check if we should save a checkpoint after every train batch """
+        r"""Evaluate every #evaluate_step_frequency steps."""
+
         trainer = args[0]
         epoch = trainer.current_epoch
         global_step = trainer.global_step

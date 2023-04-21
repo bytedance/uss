@@ -4,30 +4,25 @@ from lightning.pytorch.utilities import rank_zero_only
 
 
 class CheckpointEveryNSteps(pl.Callback):
-    """
-    Save a checkpoint every N steps, instead of Lightning's default that checkpoints
-    based on validation loss.
-    """
-
     def __init__(
         self,
         checkpoints_dir,
         save_step_frequency,
-    ):
-        """
+    ) -> None:
+        r"""Save a checkpoint every N steps.
+
         Args:
-            save_step_frequency: how often to save in steps
-            prefix: add a prefix to the name, only used if
-                use_modelcheckpoint_filename=False
-            use_modelcheckpoint_filename: just use the ModelCheckpoint callback's
-                default filename, don't use ours.
+            checkpoints_dir (str): directory to save checkpoints
+            save_step_frequency (int): save checkpoint every N step
         """
+
         self.checkpoints_dir = checkpoints_dir
         self.save_step_frequency = save_step_frequency
 
     @rank_zero_only
-    def on_train_batch_end(self, *args, **kwargs):
-        """ Check if we should save a checkpoint after every train batch """
+    def on_train_batch_end(self, *args, **kwargs) -> None:
+        r"""Save a checkpoint every N steps."""
+
         trainer = args[0]
         epoch = trainer.current_epoch
         global_step = trainer.global_step

@@ -4,28 +4,46 @@ import librosa
 import time
 import pathlib
 import pickle
+import lightning.pytorch as pl
 
 from casa.utils import calculate_sdr
-from casa.utils import create_logging, parse_yaml, load_pretrained_panns #, load_pretrained_sed_model, 
+from casa.utils import create_logging, parse_yaml, load_pretrained_panns
 
 from casa.data.anchor_segment_detectors import AnchorSegmentDetector
 from casa.data.anchor_segment_mixers import AnchorSegmentMixer
-from casa.data.query_condition_extractors import QueryConditionExtractor
 from casa.models.pl_modules import LitSeparation
 from casa.models.resunet import *
 from casa.config import IX_TO_LB
 
 
 class AudioSetEvaluator:
-    def __init__(self, audios_dir, classes_num, max_eval_per_class=None):
+    def __init__(
+        self, 
+        audios_dir: str, 
+        classes_num: int, 
+        max_eval_per_class=None,
+    ) -> None:
+        r"""AudioSet evaluator.
 
-        # self.pl_model = pl_model
+        Args:
+            audios_dir (str): directory of evaluation segments
+            classes_num (int): the number of sound classes
+            max_eval_per_class (int), the number of samples to evaluate for each sound class
+
+        Returns:
+            None
+        """
+
         self.audios_dir = audios_dir
         self.classes_num = classes_num
         self.max_eval_per_class = max_eval_per_class
 
     @torch.no_grad()
-    def __call__(self, pl_model):
+    def __call__(
+        self, 
+        pl_model: pl.LightningModule
+    ) -> Dict:
+        r"""Evalute."""
 
         sdrs_dict = {class_id: [] for class_id in range(self.classes_num)}
         sdris_dict = {class_id: [] for class_id in range(self.classes_num)}
@@ -54,6 +72,7 @@ class AudioSetEvaluator:
                 conditions = pl_model.query_net(
                     source=torch.Tensor(source)[None, :].to(device),
                 )['output']
+                # conditions: (batch_size=1, condition_dim)
                 
                 input_dict = {
                     'mixture': torch.Tensor(mixture)[None, None, :].to(device),
@@ -62,7 +81,10 @@ class AudioSetEvaluator:
 
                 pl_model.eval()
                 sep_segment = pl_model.ss_model(input_dict)['waveform']
-                sep_segment = sep_segment.squeeze().data.cpu().numpy()
+                # sep_segment: (batch_size=1, channels_num=1, segment_samples)
+
+                sep_segment = sep_segment.squeeze(dim=(0, 1)).data.cpu().numpy()
+                # sep_segment: (segment_samples,)
 
                 sdr = calculate_sdr(ref=source, est=sep_segment)
                 sdri = sdr - sdr_no_sep
@@ -79,7 +101,8 @@ class AudioSetEvaluator:
 
         return stats_dict
 
-    def _get_audio_names(self, audios_dir):
+    def _get_audio_names(self, audios_dir: str) -> List[str]:
+        r"""Get evaluation audio names."""
             
         audio_names = sorted(os.listdir(audios_dir))
 

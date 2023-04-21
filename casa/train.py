@@ -45,19 +45,28 @@ def train(args) -> None:
     # Read config file
     configs = parse_yaml(config_yaml)
 
+    # Configurations of pretrained sound event detection model from PANNs
+    sed_model_type = configs['sound_event_detection']['model_type']
+    sed_checkpoint_path = configs['sound_event_detection']['checkpoint_path']
+    sed_freeze = configs['sound_event_detection']['freeze']
+
+    # Configuration of data to train the universal source separation system
     clip_seconds = CLIP_SECONDS
     frames_per_second = FRAMES_PER_SECOND
     sample_rate = configs['data']['sample_rate']
     classes_num = configs['data']['classes_num']
     segment_seconds = configs['data']['segment_seconds']
-    mix_num = configs['data']['mix_num']
     anchor_segment_detect_mode = configs["data"]["anchor_segment_detect_mode"]
+    mix_num = configs['data']['mix_num']
+    match_energy = configs["data"]["augmentation"]["match_energy"]
 
+    # Configuration of the universal source separation model
     ss_model_type = configs['ss_model']['model_type']
     input_channels = configs['ss_model']['input_channels']
     output_channels = configs['ss_model']['output_channels']
     condition_size = configs['query_net']['outputs_num']
 
+    # Configuration of the trainer
     num_workers = configs['train']['num_workers']
     loss_type = configs['train']['loss_type']
     optimizer_type = configs["train"]["optimizer"]["optimizer_type"]
@@ -65,10 +74,13 @@ def train(args) -> None:
     lr_lambda_type = configs['train']["optimizer"]['lr_lambda_type']
     warm_up_steps = configs['train']["optimizer"]['warm_up_steps']
     reduce_lr_steps = configs['train']["optimizer"]['reduce_lr_steps']
-
     save_step_frequency = configs['train']['save_step_frequency']
     evaluate_step_frequency = configs['train']['evaluate_step_frequency']
+    resume_checkpoint_path = configs["train"]["resume_checkpoint_path"]
+    if resume_checkpoint_path == "":
+        resume_checkpoint_path = None
 
+    # Configuration of the evaluation
     balanced_train_eval_dir = os.path.join(
         workspace, configs["evaluate"]["balanced_train_eval_dir"])
     test_eval_dir = os.path.join(
@@ -90,9 +102,9 @@ def train(args) -> None:
 
     # Load pretrained sound event detection model
     sed_model = load_pretrained_panns(
-        model_type=configs['sound_event_detection']['model_type'],
-        checkpoint_path=configs['sound_event_detection']['checkpoint_path'],
-        freeze=configs['sound_event_detection']['freeze'],
+        model_type=sed_model_type,
+        checkpoint_path=sed_checkpoint_path,
+        freeze=sed_freeze,
     )
 
     # Initialize query net.
@@ -109,9 +121,10 @@ def train(args) -> None:
         condition_size=condition_size,
     )
 
-    # loss function
+    # Loss function
     loss_function = get_loss_function(loss_type=loss_type)
 
+    # Anchor segment detector
     anchor_segment_detector = AnchorSegmentDetector(
         sed_model=sed_model,
         clip_seconds=clip_seconds,
@@ -121,17 +134,20 @@ def train(args) -> None:
         detect_mode=anchor_segment_detect_mode,
     )
 
+    # Anchor segment mixer
     anchor_segment_mixer = AnchorSegmentMixer(
         mix_num=mix_num,
+        match_energy=match_energy,
     )
 
+    # Learning rate scaler
     lr_lambda_func = get_lr_lambda(
         lr_lambda_type=lr_lambda_type,
         warm_up_steps=warm_up_steps,
         reduce_lr_steps=reduce_lr_steps,
     )
 
-    # pytorch-lightning model
+    # PyTorch Lightning model
     pl_model = LitSeparation(
         ss_model=ss_model,
         anchor_segment_detector=anchor_segment_detector,
@@ -143,13 +159,16 @@ def train(args) -> None:
         lr_lambda_func=lr_lambda_func,
     )
 
+    # Checkpoint
     checkpoint_every_n_steps = CheckpointEveryNSteps(
         checkpoints_dir=checkpoints_dir,
         save_step_frequency=save_step_frequency,
     )
 
+    # Summary writer
     summary_writer = SummaryWriter(log_dir=tf_logs_dir)
 
+    # Evaluation callback
     evaluate_callback = EvaluateCallback(
         pl_model=pl_model,
         balanced_train_eval_dir=balanced_train_eval_dir,
@@ -161,9 +180,7 @@ def train(args) -> None:
         statistics_path=statistics_path,
     )
 
-    # callbacks = [checkpoint_callback, checkpoint_callback2]
-    # callbacks = []
-    # callbacks = [checkpoint_every_n_steps]
+    # All callbacks
     callbacks = [checkpoint_every_n_steps, evaluate_callback]
 
     trainer = pl.Trainer(
@@ -184,16 +201,14 @@ def train(args) -> None:
         strategy='ddp_find_unused_parameters_true',
     )
 
-    # Fit, evaluate, and save checkpoints.
+    # Fit, evaluate, and save checkpoints
     trainer.fit(
         model=pl_model,
         train_dataloaders=None,
         val_dataloaders=None,
         datamodule=datamodule,
-        # ckpt_path=None,
-        # ckpt_path="./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"
+        ckpt_path=resume_checkpoint_path,
     )
-
 
 
 def get_dirs(

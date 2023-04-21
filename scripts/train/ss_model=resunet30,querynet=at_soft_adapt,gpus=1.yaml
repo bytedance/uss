@@ -7,7 +7,7 @@ sound_event_detection:
     freeze: True
 
 query_net:
-    model_type: Cnn14_Wrapper  # "Cnn14_Wrapper" | "AdaptiveCnn14_Wrapper"
+    model_type: AdaptiveCnn14_Wrapper  # "Cnn14_Wrapper" | "AdaptiveCnn14_Wrapper"
     base_checkpoint_path: "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
     freeze_base: True
     freeze_adaptor: False
@@ -47,7 +47,6 @@ train:
     save_step_frequency: 100000  # Save every #save_step_frequency steps
     early_stop_steps: 10000001
     random_seed: 1234
-    # resume_checkpoint_path: "./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"
     resume_checkpoint_path: ""
     
 evaluate:
