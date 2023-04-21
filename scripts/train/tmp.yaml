@@ -6,14 +6,6 @@ sound_event_detection:
     checkpoint_path: "./downloaded_checkpoints/Cnn14_DecisionLevelMax_mAP=0.385.pth"
     freeze: True
 
-query_net:
-    model_type: Cnn14_Wrapper  # "Cnn14_Wrapper" | "AdaptiveCnn14_Wrapper"
-    base_checkpoint_path: "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
-    freeze_base: True
-    freeze_adaptor: False
-    bottleneck_type: at_soft  # "embedding" | "at_soft"
-    outputs_num: 527
-
 data:
     indexes_dict: "hdf5s/indexes/balanced_train.h5"
     sampler_type: balanced_sampler
@@ -25,6 +17,14 @@ data:
     augmentation:
         match_energy: True
     mix_num: 2
+
+query_net:
+    model_type: Cnn14_Wrapper  # "Cnn14_Wrapper" | "AdaptiveCnn14_Wrapper"
+    base_checkpoint_path: "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
+    freeze_base: True
+    freeze_adaptor: False
+    bottleneck_type: at_soft  # "embedding" | "at_soft"
+    outputs_num: 527
 
 ss_model:
     model_type: ResUNet30

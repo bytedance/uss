@@ -107,7 +107,7 @@ def train(args) -> None:
         freeze=sed_freeze,
     )
 
-    # Initialize query net.
+    # Initialize query net
     query_net = initialize_query_net(
         configs=configs,
     )

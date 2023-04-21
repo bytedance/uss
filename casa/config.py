@@ -21,3 +21,13 @@ IX_TO_LB = {i : label for i, label in enumerate(LABELS)}
 
 ID_TO_IX = {id : i for i, id in enumerate(IDS)}
 IX_TO_ID = {i : id for i, id in enumerate(IDS)}
+
+ROOT_CLASS_ID_DICT = {
+    '/m/0dgw9r': "Human sounds",
+    '/m/0jbk': "Animal",
+    '/m/04rlf': "Music",
+    '/m/059j3w': "Natural sounds",
+    '/t/dd00041': "Sounds of things",
+    '/t/dd00098': "Source-ambiguous sounds",
+    '/t/dd00123': "Channel, environment and background",
+}

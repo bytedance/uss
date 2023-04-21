@@ -1,142 +1,12 @@
-'''
 import json
-from casa.config import IDS, ID_TO_IX
+from typing import Union, List
 
-
-class Node:
-    def __init__(self, data):
-        r"""
-
-        Args:
-            data: dict, e.g., {
-                'id': '/m/0dgw9r', 
-                'name': 'Human sounds', 
-                'description': ..., 
-                child_ids: [...],
-                ...}
-        """
-        
-        self.id = data['id']
-        self.data = data
-        self.children = []
-
-    def search(self, id):
-        nodes, layers = self.traverse(self)
-
-        for node in nodes:
-            if id == node.id:
-                return node
-
-        return None
-
-    def search_parent(self, id):
-        nodes, layers = self.traverse(self)
-
-        for node in nodes:
-            if id in node.data['child_ids']:
-                return node
-        return None
-
-    def traverse(self, node, layer=0):
-        nodes = [node]
-        layers = [layer]
-        for e in node.children:
-            _nodes, _layers = self.traverse(e, layer + 1)
-            nodes += _nodes
-            layers += _layers
-
-        return nodes, layers
-
-
-
-def get_ontology_tree(verbose=True):
-
-    ontology_path = './metadata/ontology.json'
-
-    with open(ontology_path) as f:
-        data_list = json.load(f)    # len: 632
-
-    root = Node(data={'id': '0', 'name': '0', 'child_ids': []})
-
-    for data in data_list:
-        # E.g., data: {'id': '/m/0dgw9r', 'name': 'Human sounds', 'description': ..., child_ids: [...]}
-
-        id = data['id']
-        node = root.search_parent(id)
-
-        if not node:
-            root.children.append(Node(data))
-        else:
-            node.children.append(Node(data))
-
-    if not verbose:
-        return root
-
-    else:
-
-        nodes, layers = root.traverse(root)
-        
-        for node, layer in zip(nodes, layers):
-            print('  '*layer, layer, node.data['name'], node.data['id'])
-
-        ###
-        node = root.search(id='/m/0dgw9r')
-        nodes, layers = root.traverse(node)
-
-        id_list = []
-        for node in nodes:
-            id_list.append(node.data['id'])
-
-        # print(id_list)
-
-        index_list = []
-        for id in id_list:
-            if id in IDS:
-                index_list.append(ID_TO_IX[id])
-        # print(index_list)
-        return root
-
-        # for node, layer in zip(nodes, layers):
-        #     print('  '*layer, layer, node.data['name'], node.data['id'])
-
-
-def get_subclass_indexes(root, id):
-    r"""Get indexes of all sub tree sound classes.
-
-    Args:
-        root: Node
-        id: str
-
-    Returns:
-        index_list: list of int
-    """
-
-    node = root.search(id=id)
-    nodes, layers = root.traverse(node)
-
-    id_list = []
-    for node in nodes:
-        id_list.append(node.data['id'])
-
-    index_list = []
-    for id in id_list:
-        if id in IDS:
-            index_list.append(ID_TO_IX[id])
-            
-    return index_list
-
-
-if __name__ == '__main__':
-    get_ontology_tree()
-'''
-
-import json
-from casa.config import IDS, ID_TO_IX
+from casa.config import IDS, ID_TO_IX, ROOT_CLASS_ID_DICT
 
 
 class Node:
     def __init__(self, data, level):
-        r"""
+        r"""Sound class Node.
 
         Args:
             data: dict, e.g., {
@@ -153,7 +23,8 @@ class Node:
         self.level = level
 
     @staticmethod
-    def search(node, class_id):
+    def search(node, class_id: str):# -> Union[Node, None]:
+        r"""Search the node with class_id in the ontology tree."""
 
         if node.class_id == class_id:
             return node
@@ -167,7 +38,8 @@ class Node:
         return None
 
     @staticmethod
-    def search_parent(node, class_id):
+    def search_parent(node, class_id: str):# -> Union[Node, None]:
+        r"""Search the parent of a node with class_id."""
 
         if class_id in node.data['child_ids']:
             return node
@@ -181,7 +53,8 @@ class Node:
         return None
 
     @staticmethod
-    def traverse(node):
+    def traverse(node):# -> List[Node]:
+        r"""Traver all children of a Node including itself."""
 
         nodes = [node]
 
@@ -191,26 +64,13 @@ class Node:
         return nodes
 
 
-root_class_id_dict = {
-    '/m/0dgw9r': "Human sounds",
-    '/m/0jbk': "Animal",
-    '/m/04rlf': "Music",
-    '/m/059j3w': "Natural sounds",
-    '/t/dd00041': "Sounds of things",
-    '/t/dd00098': "Source-ambiguous sounds",
-    '/t/dd00123': "Channel, environment and background",
-}
-
-
-
-def get_ontology_tree(verbose=True):
-
-    ontology_path = './metadata/ontology.json'
+def get_ontology_tree(ontology_path: str) -> Node:
+    r"""Parse and build the AudioSet ontology tree."""
 
     with open(ontology_path) as f:
         data_list = json.load(f)    # len: 632
 
-    root_class_ids = list(root_class_id_dict.keys())
+    root_class_ids = list(ROOT_CLASS_ID_DICT.keys())
 
     data = {
         'id': 'root',
@@ -232,8 +92,8 @@ def get_ontology_tree(verbose=True):
     return root
 
 
-def get_subclass_indexes(root, id):
-    r"""Get indexes of all sub tree sound classes.
+def get_subclass_indexes(root: Node, id: str) -> List[int]:
+    r"""Get class indexes of all children of a node with id.
 
     Args:
         root: Node
@@ -259,4 +119,5 @@ def get_subclass_indexes(root, id):
 
 
 if __name__ == '__main__':
-    get_ontology_tree()
+
+    get_ontology_tree(ontology_path="./metadata/ontology.json")

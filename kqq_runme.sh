@@ -36,4 +36,5 @@ python3 casa/plot.py
 CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
+    --config_yaml="./scripts/train/tmp.yaml" \
     --checkpoint_path="./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"
