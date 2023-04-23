@@ -1,4 +1,5 @@
 import os
+
 import lightning.pytorch as pl
 from lightning.pytorch.utilities import rank_zero_only
 
@@ -24,11 +25,12 @@ class CheckpointEveryNSteps(pl.Callback):
         r"""Save a checkpoint every N steps."""
 
         trainer = args[0]
-        epoch = trainer.current_epoch
         global_step = trainer.global_step
 
         if global_step == 1 or global_step % self.save_step_frequency == 0:
-            
-            ckpt_path = os.path.join(self.checkpoints_dir, "step={}.ckpt".format(global_step))
+
+            ckpt_path = os.path.join(
+                self.checkpoints_dir,
+                "step={}.ckpt".format(global_step))
             trainer.save_checkpoint(ckpt_path)
             print("Save checkpoint to {}".format(ckpt_path))

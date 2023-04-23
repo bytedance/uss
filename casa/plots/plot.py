@@ -33,7 +33,8 @@ def add():
 
 def add2():
 
-    stat_path = "./workspaces/casa/statistics/train/config=01a,devices=1/statistics.pkl"
+    # stat_path = "./workspaces/casa/statistics/train/config=ss_model=resunet30,querynet=at_soft_adapt,gpus=1,devices=1/statistics.pkl"
+    stat_path = "./workspaces/casa/statistics/train/config=ss_model=resunet30,querynet=emb,gpus=1,devices=1/statistics.pkl"
     stats_dict = pickle.load(open(stat_path, 'rb'))
 
     sdris = []
@@ -44,6 +45,10 @@ def add2():
         # sdri = np.mean(list(stats.values()))
 
     from IPython import embed; embed(using=False); os._exit(0)
+
+
+def add3():
+    pass
 
 
 if __name__ == '__main__':

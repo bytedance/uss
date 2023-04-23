@@ -3,7 +3,7 @@ import lightning.pytorch as pl
 from lightning.pytorch.utilities import rank_zero_only
 
 from casa.evaluate import AudioSetEvaluator
-from casa.utils import StatisticsContainer
+from casa.utils import StatisticsContainer, get_mean_sdr_from_dict
 from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np
@@ -72,6 +72,8 @@ class EvaluateCallback(pl.Callback):
 
             for split, evaluator in zip(["balanced_train", "test"], [self.balanced_train_evaluator, self.test_evaluator]):
 
+                logging.info("------ {} ------".format(split))
+
                 stats_dict = evaluator(pl_model=self.pl_model)
 
                 median_sdris_dict = AudioSetEvaluator.get_median_metrics(
@@ -79,14 +81,15 @@ class EvaluateCallback(pl.Callback):
                     metric_type="sdris_dict",
                 )
 
-                sdri = np.nanmean(list(median_sdris_dict.values()))
+                median_sdri = get_mean_sdr_from_dict(median_sdris_dict)
+                logging.info("Average SDRi: {:.3f}".format(median_sdri))
 
-                self.summary_writer.add_scalar("SDRi/{}".format(split), global_step=global_step, scalar_value=sdri)
+                self.summary_writer.add_scalar("SDRi/{}".format(split), global_step=global_step, scalar_value=median_sdri)
 
                 logging.info("    Flush tensorboard logs to {}".format(self.summary_writer.log_dir))
 
                 self.statistics_container.append(
-                    steps=global_step, 
+                    step=global_step, 
                     statistics={"sdri_dict": median_sdris_dict}, 
                     split=split,
                     flush=True,

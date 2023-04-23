@@ -1,20 +1,16 @@
-import os
-import logging
-import yaml
 import datetime
+import json
+import logging
+import os
+import librosa
 import pickle
-import sys
 from typing import Dict
 
-import torch.nn as nn
-import librosa
-import torch
 import numpy as np
+import torch
+import torch.nn as nn
+import yaml
 from panns_inference.models import Cnn14, Cnn14_DecisionLevelMax
-from panns_inference.models import Cnn14
-# from casa.models.query_nets import AdaptiveCnn14
-# from openunmix.filtering import wiener
-# from audioset_source_separation.pann.models import Cnn14_DecisionLevelMax
 
 
 def create_logging(log_dir, filemode):
@@ -61,94 +57,28 @@ def parse_yaml(config_yaml: str) -> Dict:
     Returns:
         yaml_dict (Dict): parsed yaml file
     """
+
     with open(config_yaml, "r") as fr:
         return yaml.load(fr, Loader=yaml.FullLoader)
 
 
-# def str_to_class(classname):
-#     return getattr(sys.modules[__name__], classname)
-
-
-class StatisticsContainer(object):
-    def __init__(self, statistics_path):
-        self.statistics_path = statistics_path
-
-        self.backup_statistics_path = '{}_{}.pkl'.format(
-            os.path.splitext(self.statistics_path)[0], 
-            datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S'))
-
-        self.statistics_dict = {'balanced_train': [], 'test': [], 'valid': []}
-
-    def append(self, step, statistics, data_type):
-        statistics['step'] = step
-        self.statistics_dict[data_type].append(statistics)
-        
-    def dump(self):
-        pickle.dump(self.statistics_dict, open(self.statistics_path, 'wb'))
-        pickle.dump(self.statistics_dict, open(self.backup_statistics_path, 'wb'))
-        logging.info('    Dump statistics to {}'.format(self.statistics_path))
-        logging.info('    Dump statistics to {}'.format(self.backup_statistics_path))
-        
-    def load_state_dict(self, resume_step):
-        self.statistics_dict = pickle.load(open(self.statistics_path, 'rb'))
-
-        resume_statistics_dict = {'balanced_train': [], 'test': [], 'valid': []}
-        
-        for key in self.statistics_dict.keys():
-            for statistics in self.statistics_dict[key]:
-                if statistics['step'] <= resume_step:
-                    resume_statistics_dict[key].append(statistics)
-                
-        self.statistics_dict = resume_statistics_dict
-
-'''
-def load_pretrained_sed_model(checkpoint_path, freeze):
-    r"""Load pretrained sound event detection model.
-
-    Args:
-        sed_checkpoint_path: str
-
-    Returns:
-        sed_model: nn.Module
-    """
-    model = Cnn14_DecisionLevelMax(sample_rate=32000, window_size=1024, 
-        hop_size=320, mel_bins=64, fmin=50, fmax=14000, classes_num=527, interpolate_mode='nearest')
-
-    checkpoint = torch.load(checkpoint_path, map_location='cpu') 
-    model.load_state_dict(checkpoint['model'])
-
-    if freeze:
-        for param in model.parameters():
-            param.requires_grad = False
-
-    return model
-
-
-def load_pretrained_at_model(checkpoint_path):
-    r"""Load pretrained audio tagging model.
-
-    Args:
-        at_checkpoint_path: str
-
-    Returns:
-        at_model: nn.Module
-    """
-    model = Cnn14(sample_rate=32000, window_size=1024, hop_size=320, 
-        mel_bins=64, fmin=50, fmax=14000, classes_num=527)
+def get_audioset632_id_to_lb(ontology_path: str) -> Dict:
+    r"""Get AudioSet 632 classes ID to label mapping."""
     
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
-    model.load_state_dict(checkpoint['model'])
+    audioset632_id_to_lb = {}
 
-    if freeze:
-        for param in model.parameters():
-            param.requires_grad = False
+    with open(ontology_path) as f:
+        data_list = json.load(f)
 
-    return model
-'''
+    for e in data_list:
+        audioset632_id_to_lb[e["id"]] = e["name"]
+
+    return audioset632_id_to_lb
+
 
 def load_pretrained_panns(
-    model_type: str, 
-    checkpoint_path: str, 
+    model_type: str,
+    checkpoint_path: str,
     freeze: bool
 ) -> nn.Module:
     r"""Load pretrained pretrained audio neural networks (PANNs).
@@ -161,66 +91,28 @@ def load_pretrained_panns(
     Returns:
         model: nn.Module
     """
+
     if model_type == "Cnn14":
         Model = Cnn14
-    
+
     elif model_type == "Cnn14_DecisionLevelMax":
         Model = Cnn14_DecisionLevelMax
 
     else:
         raise NotImplementedError
-    
-    model = Model(sample_rate=32000, window_size=1024, hop_size=320, 
-        mel_bins=64, fmin=50, fmax=14000, classes_num=527)
-    
+
+    model = Model(sample_rate=32000, window_size=1024, hop_size=320,
+                  mel_bins=64, fmin=50, fmax=14000, classes_num=527)
+
     if checkpoint_path:
-        checkpoint = torch.load(checkpoint_path, map_location='cpu')
-        model.load_state_dict(checkpoint['model'])
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        model.load_state_dict(checkpoint["model"])
 
     if freeze:
         for param in model.parameters():
             param.requires_grad = False
 
     return model
-
-
-# def initialize_query_net(configs):
-#     r"""Load pretrained audio tagging model.
-
-#     Args:
-#         at_checkpoint_path: str
-
-#     Returns:
-#         at_model: nn.Module
-#     """
-#     model_type = configs["query_net"]["model_type"]
-
-#     if model_type == "Cnn14":
-#         model = load_pretrained_model(
-#             model_type=configs["query_net"]["model_type"], 
-#             checkpoint_path=configs["query_net"]["checkpoint_path"], 
-#             freeze=configs["query_net"]["freeze"], 
-#         )
-
-#     elif model_type == "AdaptiveCnn14":
-
-#         base = load_pretrained_model(
-#             model_name="Cnn14",
-#             checkpoint_path=checkpoint_path,
-#             freeze=configs["audio_tagging"]["at_checkpoint_path"],
-#         )
-
-#         model = AdaptiveCnn14(
-#             base=base,
-#             condition_type=configs["data"]["condition_type"],
-#             condition_size=configs["data"]["condition_size"],
-#             at_checkpoint_path=configs["audio_tagging"]["at_checkpoint_path"],
-#         )
-
-#     else:
-#         raise NotImplementedError
-    
-#     return model
 
 
 def energy(x):
@@ -242,69 +134,28 @@ def ids_to_hots(ids, classes_num, device):
         hots[id] = 1
     return hots
 
-'''
-def calculate_sdr(ref, est):
-    s_true = ref
-    s_artif = est - ref
-    sdr = 10. * (
-        np.log10(np.clip(np.mean(s_true ** 2), 1e-8, np.inf)) \
-        - np.log10(np.clip(np.mean(s_artif ** 2), 1e-8, np.inf)))
-    return sdr
-'''
 
-def calculate_sdr(ref, est, eps=1e-10):
-    
+def calculate_sdr(
+    ref: np.ndarray,
+    est: np.ndarray,
+    eps=1e-10
+) -> float:
+    r"""Calculate SDR between reference and estimation.
+
+    Args:
+        ref (np.ndarray), reference signal
+        est (np.ndarray), estimated signal
+    """
+
     noise = est - ref
 
     numerator = np.clip(a=np.mean(ref ** 2), a_min=eps, a_max=None)
-    
+
     denominator = np.clip(a=np.mean(noise ** 2), a_min=eps, a_max=None)
 
     sdr = 10. * np.log10(numerator / denominator)
-    
-    return sdr
-
-'''
-def calculate_sisdr(ref, est):
-    
-    eps = 1e-8
-    ref *= np.sum(ref * est) / np.sum(ref ** 2)
-
-    noise = est - ref
-    sdr = 10. * np.log10(np.sum(ref ** 2) / (np.sum(noise ** 2) + eps) + eps)
 
     return sdr
-'''
-
-def calculate_sdr_segmentwise(references, estimates, win, hop):
-    pointer = 0
-    sdrs = []
-    while pointer + win < references.shape[-1]:
-        sdr = calculate_sdr(
-            ref=references[pointer : pointer + win],
-            est=estimates[pointer : pointer + win],
-        )
-        sdrs.append(sdr)
-        pointer += hop
-    return sdrs
-    
-
-def get_energy_ratio(segment1, segment2):
-
-    def _energy(x):
-        return np.mean(x ** 2)
-
-    energy1 = _energy(segment1)
-    energy2 = max(1e-10, _energy(segment2))
-    ratio = (energy1 / energy2) ** 0.5
-    ratio = np.clip(ratio, 0.02, 50)
-    return ratio
-
-
-def fix_length(audio, segment_samples):
-    repeats_num = (segment_samples // audio.shape[-1]) + 1
-    audio = np.tile(audio, repeats_num)[0 : segment_samples]
-    return audio
 
 
 class StatisticsContainer(object):
@@ -313,81 +164,79 @@ class StatisticsContainer(object):
 
         self.backup_statistics_path = "{}_{}.pkl".format(
             os.path.splitext(self.statistics_path)[0],
-            datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
-        )
+            datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
 
-        self.statistics_dict = {"balanced_train": [], "test": []}
+        self.statistics_dict = {"balanced_train": [], "test": [], "valid": []}
 
-    def append(self, steps, statistics, split, flush=True):
-        statistics["steps"] = steps
-        self.statistics_dict[split].append(statistics)
+    def append(self, step, statistics, data_type):
+        statistics["step"] = step
+        self.statistics_dict[data_type].append(statistics)
 
-        if flush:
-            self.flush()
-
-    def flush(self):
+    def dump(self):
         pickle.dump(self.statistics_dict, open(self.statistics_path, "wb"))
-        pickle.dump(self.statistics_dict, open(self.backup_statistics_path, "wb"))
+        pickle.dump(
+            self.statistics_dict, open(
+                self.backup_statistics_path, "wb"))
         logging.info("    Dump statistics to {}".format(self.statistics_path))
-        logging.info("    Dump statistics to {}".format(self.backup_statistics_path))
+        logging.info(
+            "    Dump statistics to {}".format(
+                self.backup_statistics_path))
+
+    def load_state_dict(self, resume_step):
+        self.statistics_dict = pickle.load(open(self.statistics_path, "rb"))
+
+        resume_statistics_dict = {
+            "balanced_train": [], "test": [], "valid": []}
+
+        for key in self.statistics_dict.keys():
+            for statistics in self.statistics_dict[key]:
+                if statistics["step"] <= resume_step:
+                    resume_statistics_dict[key].append(statistics)
+
+        self.statistics_dict = resume_statistics_dict
 
 
+def get_mean_sdr_from_dict(sdris_dict):
+    mean_sdr = np.nanmean(list(sdris_dict.values()))
+    return mean_sdr
 
-'''
-def do_wiener(mixture, output_dict):
 
-    source_types = output_dict.keys()
+def remove_silence(audio: np.ndarray, sample_rate: int) -> np.ndarray:
+    r"""Remove silent frames."""
+    window_size = int(sample_rate * 0.1)
+    threshold = 0.02
 
-    tmp = []
-    for source_type in source_types:
-        stft_matrix = librosa.core.stft(
-            y=output_dict[source_type], 
-            n_fft=2048, 
-            hop_length=320, 
-            window='hann', 
-            center=True
-        )
-        tmp.append(np.abs(stft_matrix))
+    frames = librosa.util.frame(x=audio, frame_length=window_size, hop_length=window_size).T
+    # shape: (frames_num, window_size)
 
-    targets_spectrograms = np.stack(tmp, axis=-1)[:, :, None, :]
-    targets_spectrograms = torch.Tensor(targets_spectrograms)
+    new_frames = get_active_frames(frames, threshold)
+    # shape: (new_frames_num, window_size)
 
-    mixture_stft = librosa.core.stft(
-        y=mixture, 
-        n_fft=2048, 
-        hop_length=320, 
-        window='hann', 
-        center=True
-    )
+    new_audio = new_frames.flatten()
+    # shape: (new_audio_samples,)
 
-    mix_stft = np.stack((np.real(mixture_stft), np.imag(mixture_stft)), axis=-1)[:, :, None, :]
-    mix_stft = torch.Tensor(mix_stft)
+    return new_audio
 
-    y_stft = wiener(
-        targets_spectrograms=targets_spectrograms,
-        mix_stft=mix_stft,
-        iterations=1,
-        softmask=True,
-        residual=False,
-        scale_factor=10.0,
-        eps=1e-10,
-    )
-    y_stft = y_stft.data.cpu().numpy()
 
-    wiener_output_dict = {}
-    for i, source_type in enumerate(source_types):
-        tmp = y_stft[:, :, :, 0, i] + 1j * y_stft[:, :, :, 1, i]
-        tmp = tmp[:, :, 0]
+def get_active_frames(frames: np.ndarray, threshold: float) -> np.ndarray:
+    r"""Get active frames."""
 
-        recovered_audio = librosa.core.istft(
-            tmp, 
-            hop_length=320, 
-            window='hann',
-            center=True, 
-            dtype=np.float32, 
-            length=mixture.shape[-1],
-        )
-        wiener_output_dict[source_type] = recovered_audio
+    energy = np.max(np.abs(frames), axis=-1)
+    # shape: (frames_num,)
 
-    return wiener_output_dict
-'''
+    active_indexes = np.where(energy > threshold)[0]
+    # shape: (new_frames_num,)
+
+    new_frames = frames[active_indexes]
+    # shape: (new_frames_num,)
+
+    return new_frames
+
+
+def repeat_to_length(audio: np.ndarray, segment_samples: int) -> np.ndarray:
+    r"""Repeat audio to length."""
+    
+    repeats_num = (segment_samples // audio.shape[-1]) + 1
+    audio = np.tile(audio, repeats_num)[0 : segment_samples]
+
+    return audio

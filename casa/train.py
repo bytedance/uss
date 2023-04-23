@@ -46,36 +46,36 @@ def train(args) -> None:
     configs = parse_yaml(config_yaml)
 
     # Configurations of pretrained sound event detection model from PANNs
-    sed_model_type = configs['sound_event_detection']['model_type']
-    sed_checkpoint_path = configs['sound_event_detection']['checkpoint_path']
-    sed_freeze = configs['sound_event_detection']['freeze']
+    sed_model_type = configs["sound_event_detection"]["model_type"]
+    sed_checkpoint_path = configs["sound_event_detection"]["checkpoint_path"]
+    sed_freeze = configs["sound_event_detection"]["freeze"]
 
     # Configuration of data to train the universal source separation system
     clip_seconds = CLIP_SECONDS
     frames_per_second = FRAMES_PER_SECOND
-    sample_rate = configs['data']['sample_rate']
-    classes_num = configs['data']['classes_num']
-    segment_seconds = configs['data']['segment_seconds']
+    sample_rate = configs["data"]["sample_rate"]
+    classes_num = configs["data"]["classes_num"]
+    segment_seconds = configs["data"]["segment_seconds"]
     anchor_segment_detect_mode = configs["data"]["anchor_segment_detect_mode"]
-    mix_num = configs['data']['mix_num']
+    mix_num = configs["data"]["mix_num"]
     match_energy = configs["data"]["augmentation"]["match_energy"]
 
     # Configuration of the universal source separation model
-    ss_model_type = configs['ss_model']['model_type']
-    input_channels = configs['ss_model']['input_channels']
-    output_channels = configs['ss_model']['output_channels']
-    condition_size = configs['query_net']['outputs_num']
+    ss_model_type = configs["ss_model"]["model_type"]
+    input_channels = configs["ss_model"]["input_channels"]
+    output_channels = configs["ss_model"]["output_channels"]
+    condition_size = configs["query_net"]["outputs_num"]
 
     # Configuration of the trainer
-    num_workers = configs['train']['num_workers']
-    loss_type = configs['train']['loss_type']
+    num_workers = configs["train"]["num_workers"]
+    loss_type = configs["train"]["loss_type"]
     optimizer_type = configs["train"]["optimizer"]["optimizer_type"]
-    learning_rate = float(configs['train']["optimizer"]['learning_rate'])
-    lr_lambda_type = configs['train']["optimizer"]['lr_lambda_type']
-    warm_up_steps = configs['train']["optimizer"]['warm_up_steps']
-    reduce_lr_steps = configs['train']["optimizer"]['reduce_lr_steps']
-    save_step_frequency = configs['train']['save_step_frequency']
-    evaluate_step_frequency = configs['train']['evaluate_step_frequency']
+    learning_rate = float(configs["train"]["optimizer"]["learning_rate"])
+    lr_lambda_type = configs["train"]["optimizer"]["lr_lambda_type"]
+    warm_up_steps = configs["train"]["optimizer"]["warm_up_steps"]
+    reduce_lr_steps = configs["train"]["optimizer"]["reduce_lr_steps"]
+    save_step_frequency = configs["train"]["save_step_frequency"]
+    evaluate_step_frequency = configs["train"]["evaluate_step_frequency"]
     resume_checkpoint_path = configs["train"]["resume_checkpoint_path"]
     if resume_checkpoint_path == "":
         resume_checkpoint_path = None
@@ -184,8 +184,8 @@ def train(args) -> None:
     callbacks = [checkpoint_every_n_steps, evaluate_callback]
 
     trainer = pl.Trainer(
-        accelerator='auto',
-        devices='auto',
+        accelerator="auto",
+        devices="auto",
         num_nodes=1,
         precision="32-true",
         logger=None,
@@ -198,7 +198,7 @@ def train(args) -> None:
         enable_checkpointing=False,
         enable_progress_bar=True,
         enable_model_summary=True,
-        strategy='ddp_find_unused_parameters_true',
+        strategy="ddp_find_unused_parameters_true",
     )
 
     # Fit, evaluate, and save checkpoints
@@ -277,9 +277,9 @@ def get_dirs(
 
 
 def get_datamodule(
-    workspace: str, 
-    config_yaml: str, 
-    num_workers: int, 
+    workspace: str,
+    config_yaml: str,
+    num_workers: int,
     devices_num: int,
 ) -> DataModule:
     r"""Create a PyTorch Lightning datamodule for yielding mini-batches of data.
@@ -287,7 +287,7 @@ def get_datamodule(
     Args:
         workspace (str): directory of workspace
         config_yaml (str): config yaml path
-        num_workers (int): e.g., 16 for using multiple cpu cores for preparing 
+        num_workers (int): e.g., 16 for using multiple cpu cores for preparing
             data in parallel
         devices_num (int): the number of GPUs to run
 
@@ -304,9 +304,10 @@ def get_datamodule(
 
     # Read configs
     configs = parse_yaml(config_yaml)
-    indexes_hdf5_path = os.path.join(workspace, configs['data']['indexes_dict'])
-    batch_size = configs['train']['batch_size_per_device'] * devices_num
-    steps_per_epoch = configs['train']['steps_per_epoch']
+    indexes_hdf5_path = os.path.join(
+        workspace, configs["data"]["indexes_dict"])
+    batch_size = configs["train"]["batch_size_per_device"] * devices_num
+    steps_per_epoch = configs["train"]["steps_per_epoch"]
 
     # dataset
     train_dataset = Dataset(

@@ -1,26 +1,24 @@
+import logging
 import os
-import re
-import librosa
-import time
 import pathlib
-import pickle
+import re
+from typing import Dict, List
+
+import librosa
 import lightning.pytorch as pl
+import numpy as np
+import torch
 
-from casa.utils import calculate_sdr
-from casa.utils import create_logging, parse_yaml, load_pretrained_panns
-
-from casa.data.anchor_segment_detectors import AnchorSegmentDetector
-from casa.data.anchor_segment_mixers import AnchorSegmentMixer
-from casa.models.pl_modules import LitSeparation
-from casa.models.resunet import *
 from casa.config import IX_TO_LB
+from casa.inference import load_ss_model
+from casa.utils import create_logging, calculate_sdr, parse_yaml, get_mean_sdr_from_dict
 
 
 class AudioSetEvaluator:
     def __init__(
-        self, 
-        audios_dir: str, 
-        classes_num: int, 
+        self,
+        audios_dir: str,
+        classes_num: int,
         max_eval_per_class=None,
     ) -> None:
         r"""AudioSet evaluator.
@@ -40,7 +38,7 @@ class AudioSetEvaluator:
 
     @torch.no_grad()
     def __call__(
-        self, 
+        self,
         pl_model: pl.LightningModule
     ) -> Dict:
         r"""Evalute."""
@@ -50,7 +48,9 @@ class AudioSetEvaluator:
 
         for class_id in range(self.classes_num):
 
-            sub_dir = os.path.join(self.audios_dir, "class_id={}".format(class_id))            
+            sub_dir = os.path.join(
+                self.audios_dir,
+                "class_id={}".format(class_id))
 
             audio_names = self._get_audio_names(audios_dir=sub_dir)
 
@@ -59,31 +59,34 @@ class AudioSetEvaluator:
                 if audio_index == self.max_eval_per_class:
                     break
 
-                source_path = os.path.join(sub_dir, "{},source.wav".format(audio_name))
-                mixture_path = os.path.join(sub_dir, "{},mixture.wav".format(audio_name))
+                source_path = os.path.join(
+                    sub_dir, "{},source.wav".format(audio_name))
+                mixture_path = os.path.join(
+                    sub_dir, "{},mixture.wav".format(audio_name))
 
                 source, fs = librosa.load(source_path, sr=None, mono=True)
                 mixture, fs = librosa.load(mixture_path, sr=None, mono=True)
 
                 sdr_no_sep = calculate_sdr(ref=source, est=mixture)
-                
+
                 device = pl_model.device
-                
+
                 conditions = pl_model.query_net(
                     source=torch.Tensor(source)[None, :].to(device),
-                )['output']
+                )["output"]
                 # conditions: (batch_size=1, condition_dim)
-                
+
                 input_dict = {
-                    'mixture': torch.Tensor(mixture)[None, None, :].to(device),
-                    'condition': conditions,
+                    "mixture": torch.Tensor(mixture)[None, None, :].to(device),
+                    "condition": conditions,
                 }
 
                 pl_model.eval()
-                sep_segment = pl_model.ss_model(input_dict)['waveform']
+                sep_segment = pl_model.ss_model(input_dict)["waveform"]
                 # sep_segment: (batch_size=1, channels_num=1, segment_samples)
 
-                sep_segment = sep_segment.squeeze(dim=(0, 1)).data.cpu().numpy()
+                sep_segment = sep_segment.squeeze(
+                    dim=(0, 1)).data.cpu().numpy()
                 # sep_segment: (segment_samples,)
 
                 sdr = calculate_sdr(ref=source, est=sep_segment)
@@ -92,7 +95,11 @@ class AudioSetEvaluator:
                 sdrs_dict[class_id].append(sdr)
                 sdris_dict[class_id].append(sdri)
 
-            print("Class ID: {} / {}, SDR: {:.3f}, SDRi: {:.3f}".format(class_id, self.classes_num, np.mean(sdrs_dict[class_id]), np.mean(sdris_dict[class_id])))
+            logging.info(
+                "Class ID: {} / {}, SDR: {:.3f}, SDRi: {:.3f}".format(
+                    class_id, self.classes_num, np.mean(
+                        sdrs_dict[class_id]), np.mean(
+                        sdris_dict[class_id])))
 
         stats_dict = {
             "sdrs_dict": sdrs_dict,
@@ -103,10 +110,13 @@ class AudioSetEvaluator:
 
     def _get_audio_names(self, audios_dir: str) -> List[str]:
         r"""Get evaluation audio names."""
-            
+
         audio_names = sorted(os.listdir(audios_dir))
 
-        audio_names = [re.search('(.*),(mixture|source).wav', audio_name).group(1) for audio_name in audio_names]
+        audio_names = [
+            re.search(
+                "(.*),(mixture|source).wav",
+                audio_name).group(1) for audio_name in audio_names]
 
         audio_names = sorted(list(set(audio_names)))
 
@@ -115,104 +125,82 @@ class AudioSetEvaluator:
     @staticmethod
     def get_median_metrics(stats_dict, metric_type):
         class_ids = stats_dict[metric_type].keys()
-        median_stats_dict = {class_id: np.nanmedian(stats_dict[metric_type][class_id]) for class_id in class_ids}
+        median_stats_dict = {
+            class_id: np.nanmedian(
+                stats_dict[metric_type][class_id]) for class_id in class_ids}
         return median_stats_dict
 
 
-def add2():
+def test_evaluate(config_yaml: str, workspace: str):
+    r"""Evaluate using pretrained checkpoint.
 
-    config_yaml = "./scripts/train/01a.yaml"
-    sample_rate = 32000
-    classes_num = 527
-    device = 'cuda'
+    Args:
+        config_yaml (str), path of the config yaml file
+        workspace (str), directory of workspace
+
+    Returns:
+        None
+    """
+
+    device = "cuda"
 
     configs = parse_yaml(config_yaml)
 
-    num_workers = configs['train']['num_workers']
-    model_type = configs['model']['model_type']
-    input_channels = configs['model']['input_channels']
-    output_channels = configs['model']['output_channels']
-    condition_size = configs['data']['condition_size']
-    loss_type = configs['train']['loss_type']
-    learning_rate = float(configs['train']['learning_rate'])
-    condition_type = configs['data']['condition_type']
+    classes_num = configs["data"]["classes_num"]
 
-    sample_rate = configs['data']['sample_rate']
+    audios_dir = os.path.join(
+        workspace, "evaluation/audioset/2s_segments_test")
 
-    at_model = load_pretrained_model(
-        model_name=configs['audio_tagging']['model_name'],
-        checkpoint_path=configs['audio_tagging']['checkpoint_path'],
-        freeze=configs['audio_tagging']['freeze'],
+    create_logging("_tmp_log", filemode="w")
+
+    # Evlauator
+    evaluator = AudioSetEvaluator(
+        audios_dir=audios_dir,
+        classes_num=classes_num,
+        max_eval_per_class=10
     )
 
-    query_condition_extractor = QueryConditionExtractor(
-        at_model=at_model,
-        condition_type=condition_type,
-    )
+    steps = [1]
 
-    Model = eval(model_type)
-    # Model = str_to_class(model_type)
+    for step in steps:
 
-    ss_model = Model(
-        input_channels=input_channels,
-        output_channels=output_channels,
-        condition_size=condition_size,
-    )
+        # Checkpoint path
+        checkpoint_path = os.path.join(
+            workspace, "checkpoints/train/config={},devices=1/step={}.ckpt".format(
+                pathlib.Path(config_yaml).stem, step))
 
-    # pytorch-lightning model
-    pl_model = LitSeparation(
-        ss_model=ss_model,
-        anchor_segment_detector=None,
-        anchor_segment_mixer=None,
-        query_condition_extractor=query_condition_extractor,
-        loss_function=None,
-        learning_rate=None,
-        lr_lambda=None,
-    )
-
-    # checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_9/checkpoints/step=80000.ckpt"
-
-    # for step in [20000, 40000, 60000, 80000, 100000, 120000, 140000, 160000]:
-    for step in range(180000, 400000, 20000):
-    # for step in [20000, 40000, 60000, 80000, 100000]:
-        # checkpoint_path = "/home/tiger/my_code_2019.12-/python/audioset_source_separation/lightning_logs/version_9/checkpoints/step={}.ckpt".format(step)
-        checkpoint_path = "/home/tiger/workspaces/casa/checkpoints/train/config={},devices=1/step={}.ckpt".format(pathlib.Path(config_yaml).stem, step)
-
-        pl_model = LitSeparation.load_from_checkpoint(
-            checkpoint_path=checkpoint_path,
-            strict=False,
-            ss_model=ss_model,
-            anchor_segment_detector=None,
-            anchor_segment_mixer=None,
-            query_condition_extractor=query_condition_extractor,
-            loss_function=None,
-            learning_rate=None,
-            lr_lambda=None,
+        # Load model
+        pl_model = load_ss_model(
+            configs=configs,
+            checkpoint_path=checkpoint_path
         ).to(device)
 
-        audios_dir = "/home/tiger/workspaces/casa/evaluation/audioset/mixtures_sources_test"
+        # Evaluate statistics
+        stats_dict = evaluator(pl_model=pl_model)
 
-        evaluator = AudioSetEvaluator(pl_model=pl_model, audios_dir=audios_dir, classes_num=classes_num, max_eval_per_class=10)
-
-        stats_dict = evaluator()
-
-        mean_sdris = {}
+        median_sdris = {}
 
         for class_id in range(classes_num):
-            mean_sdris[class_id] = np.nanmean(stats_dict['sdris_dict'][class_id])
-            print("{} {}: {:.3f}".format(class_id, IX_TO_LB[class_id], mean_sdris[class_id]))
 
-        final_sdri = np.nanmean([mean_sdris[class_id] for class_id in range(classes_num)])
+            median_sdris[class_id] = np.nanmedian(
+                stats_dict["sdris_dict"][class_id])
+
+            print(
+                "{} {}: {:.3f}".format(
+                    class_id,
+                    IX_TO_LB[class_id],
+                    median_sdris[class_id]))
+
+        mean_sdri = get_mean_sdr_from_dict(median_sdris)
+        # final_sdri = np.nanmean([mean_sdris[class_id]
+                                # for class_id in range(classes_num)])
         print("--------")
-        print("Final avg SDRi: {:.3f}".format(final_sdri))
+        print("Average SDRi: {:.3f}".format(mean_sdri))
 
-        
-        stat_path = os.path.join("stats", pathlib.Path(config_yaml).stem, "step={}.pkl".format(step))
-        os.makedirs(os.path.dirname(stat_path), exist_ok=True)
-        pickle.dump(stats_dict, open(stat_path, 'wb'))
-        print("Write out to {}".format(stat_path))
-        
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    add2()
+    test_evaluate(
+        config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml",
+        workspace="./workspaces/casa",
+    )

@@ -1,9 +1,10 @@
-import torch
-import torch.nn as nn
 from typing import Callable, Dict
 
-from casa.models.base import Base
+import torch
+import torch.nn as nn
 from torchlibrosa.stft import STFT
+
+from casa.models.base import Base
 
 
 def l1(output: torch. Tensor, target: torch.Tensor) -> torch.float:
@@ -23,7 +24,7 @@ def l1_wav(output_dict: Dict, target_dict: Dict) -> torch.float:
         loss: torch.float
     """
 
-    return l1(output_dict['segment'], target_dict['segment'])
+    return l1(output_dict["segment"], target_dict["segment"])
 
 
 class L1_Wav_L1_Sp(nn.Module, Base):
@@ -49,7 +50,7 @@ class L1_Wav_L1_Sp(nn.Module, Base):
         )
 
     def __call__(
-        self, output_dict, target_dict) -> torch.float:
+            self, output_dict, target_dict) -> torch.float:
         r"""L1 loss in the time-domain and in the spectrogram.
 
         Args:
@@ -62,7 +63,7 @@ class L1_Wav_L1_Sp(nn.Module, Base):
 
         # L1 loss in the time-domain
         wav_loss = l1_wav(output_dict, target_dict)
-        
+
         # L1 loss on the spectrogram
         sp_loss = l1(
             self.wav_to_spectrogram(output_dict["segment"], eps=1e-8),
@@ -71,7 +72,6 @@ class L1_Wav_L1_Sp(nn.Module, Base):
 
         # Total loss
         return wav_loss + sp_loss
-
 
 
 def get_loss_function(loss_type: str) -> Callable:

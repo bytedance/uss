@@ -1,37 +1,29 @@
-import os
-import re
-import librosa
-import time
-import pathlib
-import pickle
-import json
-import soundfile
 import argparse
-import matplotlib.pyplot as plt
+import os
+import time
+import pickle
+import pathlib
+from typing import Dict, List
+
+import librosa
 import lightning.pytorch as pl
+import matplotlib.pyplot as plt
+import numpy as np
+import soundfile
+import torch
+import torch.nn as nn
 
-from casa.utils import calculate_sdr
-from casa.utils import create_logging, parse_yaml, load_pretrained_panns
-
-from casa.data.anchor_segment_detectors import AnchorSegmentDetector
-from casa.data.anchor_segment_mixers import AnchorSegmentMixer
+from casa.config import ID_TO_IX, LB_TO_IX, IX_TO_LB
 from casa.models.pl_modules import LitSeparation, get_model_class
-from casa.models.resunet import *
-from casa.config import IX_TO_LB, ID_TO_IX
-from casa.parse_ontology import get_ontology_tree, get_subclass_indexes, Node
 from casa.models.query_nets import initialize_query_net
+from casa.parse_ontology import Node, get_ontology_tree
+from casa.utils import (get_audioset632_id_to_lb, load_pretrained_panns,
+                        parse_yaml, remove_silence, repeat_to_length)
 
 
-ontology_path = 'metadata/ontology.json'
-audioset632_id_to_lb = {}
-with open(ontology_path) as f:
-    data_list = json.load(f)
-for e in data_list:
-    audioset632_id_to_lb[e['id']] = e['name']
-
-
+'''
 def separate(args) -> None:
-    r"""Do separation of active sound classes."""
+    r"""Do separation for active sound classes."""
 
     # Arguments & parameters
     audio_path = args.audio_path
@@ -39,30 +31,33 @@ def separate(args) -> None:
     config_yaml = args.config_yaml
     checkpoint_path = args.checkpoint_path
     output_dir = args.output_dir
-    
+
     non_sil_threshold = 1e-6
-    device = 'cuda'
-    ontology_path = './metadata/ontology.json'
+    device = "cuda"
+    ontology_path = "./metadata/ontology.json"
 
     configs = parse_yaml(config_yaml)
-    sample_rate = configs['data']['sample_rate']
-    classes_num = configs["data"]["classes_num"]
+    sample_rate = configs["data"]["sample_rate"]
     segment_seconds = configs["data"]["segment_seconds"]
     segment_samples = int(sample_rate * segment_seconds)
-    
+
+    audioset632_id_to_lb = get_audioset632_id_to_lb(
+        ontology_path=ontology_path)
+
     # Create directory
     if not output_dir:
-        output_dir = os.path.join("separated_results", pathlib.Path(audio_path).stem)
+        output_dir = os.path.join(
+            "separated_results",
+            pathlib.Path(audio_path).stem)
 
     # Load pretrained universal source separation model
     pl_model = load_ss_model(
         configs=configs,
-        checkpoint_path=checkpoint_path, 
+        checkpoint_path=checkpoint_path,
     ).to(device)
 
     # Load audio
     audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
-    audio_samples = audio.shape[-1]
 
     # Load pretrained audio tagging model
     at_model = load_pretrained_panns(
@@ -72,13 +67,13 @@ def separate(args) -> None:
     ).to(device)
 
     at_probs = calculate_segment_at_probs(
-        audio=audio, 
-        segment_samples=segment_samples, 
+        audio=audio,
+        segment_samples=segment_samples,
         at_model=at_model,
         device=device,
     )
     # at_probs: (segments_num, condition_dim)
-    
+
     # Parse and build AudioSet ontology tree
     root = get_ontology_tree(ontology_path=ontology_path)
 
@@ -98,15 +93,15 @@ def separate(args) -> None:
 
             subclass_indexes = get_children_indexes(node=node)
             # E.g., [0, 1, ..., 71]
-            
+
             if len(subclass_indexes) == 0:
                 continue
 
             sep_audio = separate_by_query_conditions(
-                audio=audio, 
-                segment_samples=segment_samples, 
+                audio=audio,
+                segment_samples=segment_samples,
                 at_probs=at_probs,
-                subclass_indexes=subclass_indexes, 
+                subclass_indexes=subclass_indexes,
                 pl_model=pl_model,
                 device=device,
             )
@@ -114,7 +109,10 @@ def separate(args) -> None:
 
             # Write out separated audio
             label = audioset632_id_to_lb[class_id]
-            output_path = os.path.join(output_dir, "level={}".format(level), "{}.wav".format(label))
+            output_path = os.path.join(
+                output_dir,
+                "level={}".format(level),
+                "{}.wav".format(label))
 
             if np.max(sep_audio) > non_sil_threshold:
                 write_audio(
@@ -127,13 +125,343 @@ def separate(args) -> None:
             hierarchy_at_probs.append(hierarchy_at_prob)
 
         hierarchy_at_probs = np.stack(hierarchy_at_probs, axis=-1)
-        plt.matshow(hierarchy_at_probs.T, origin='lower', aspect='auto', cmap='jet')
-        plt.savefig('_zz_{}.pdf'.format(level))
+        plt.matshow(
+            hierarchy_at_probs.T,
+            origin="lower",
+            aspect="auto",
+            cmap="jet")
+        plt.savefig("_zz_{}.pdf".format(level))
+'''
+
+def separate(args) -> None:
+    r"""Do separation for active sound classes."""
+
+    # Arguments & parameters
+    audio_path = args.audio_path
+    levels = args.levels
+    class_ids = args.class_ids
+    queries_dir = args.queries_dir
+    query_emb_path = args.query_emb_path
+    config_yaml = args.config_yaml
+    checkpoint_path = args.checkpoint_path
+    output_dir = args.output_dir
+
+    non_sil_threshold = 1e-6
+    device = "cuda"
+    ontology_path = "./metadata/ontology.json"
+
+    configs = parse_yaml(config_yaml)
+    sample_rate = configs["data"]["sample_rate"]
+    segment_seconds = configs["data"]["segment_seconds"]
+    segment_samples = int(sample_rate * segment_seconds)
+
+    # Create directory
+    if not output_dir:
+        output_dir = os.path.join(
+            "separated_results",
+            pathlib.Path(audio_path).stem)
+
+    # Load pretrained universal source separation model
+    pl_model = load_ss_model(
+        configs=configs,
+        checkpoint_path=checkpoint_path,
+    ).to(device)
+
+    # Load audio
+    audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
+
+    # Load pretrained audio tagging model
+    at_model = load_pretrained_panns(
+        model_type="Cnn14",
+        checkpoint_path="./downloaded_checkpoints/Cnn14_mAP=0.431.pth",
+        freeze=True,
+    ).to(device)
+
+    flag_sum = sum([
+        len(levels) > 0, 
+        len(class_ids) > 0, 
+        len(queries_dir) > 0, 
+        len(query_emb_path) > 0,
+    ])
+
+    assert flag_sum in [0, 1], "Please use only `levels` or `class_ids` or \
+        `queries_dir` or `query_emb_path` arguments."
+
+    if flag_sum == 0:
+        levels = [1, 2, 3]
+
+    # Separate by hierarchy
+    if len(levels) > 0:
+        separate_by_hierarchy(
+            audio=audio, 
+            sample_rate=sample_rate, 
+            segment_samples=segment_samples, 
+            at_model=at_model, 
+            pl_model=pl_model,
+            device=device, 
+            levels=levels, 
+            ontology_path=ontology_path, 
+            non_sil_threshold=non_sil_threshold, 
+            output_dir=output_dir
+        )
+
+    # Separate by class IDs
+    elif len(class_ids) > 0:
+        separate_by_class_ids(
+            audio=audio, 
+            sample_rate=sample_rate, 
+            segment_samples=segment_samples, 
+            at_model=at_model, 
+            pl_model=pl_model,
+            device=device, 
+            class_ids=class_ids, 
+            output_dir=output_dir
+        )
+
+    elif len(queries_dir) > 0:
+
+        print("Calculate query condition ...")
+        query_time = time.time()
+
+        query_condition = calculate_query_emb(
+            queries_dir=queries_dir,
+            pl_model=pl_model,
+            sample_rate=sample_rate,
+            remove_sil=True,
+            segment_samples=segment_samples,
+        )
+
+        print("Time: {:.3f} s".format(time.time() - query_time))
+        
+        pickle_path = os.path.join("./query_conditions", "config={}".format(pathlib.Path(config_yaml).stem), "{}.pkl".format(pathlib.Path(queries_dir).stem))
+        
+        os.makedirs(os.path.dirname(pickle_path), exist_ok=True)
+
+        pickle.dump(query_condition, open(pickle_path, 'wb'))
+        print("Write query condition to {}".format(pickle_path))
+
+        output_path = os.path.join(output_dir, "query={}.wav".format(pathlib.Path(queries_dir).stem))
+
+        separate_by_query_condition(
+            audio=audio, 
+            segment_samples=segment_samples, 
+            sample_rate=sample_rate,
+            query_condition=query_condition,
+            pl_model=pl_model,
+            output_path=output_path,
+        )
+
+
+def separate_by_hierarchy(
+    audio: np.ndarray, 
+    sample_rate: int, 
+    segment_samples: int, 
+    at_model: nn.Module, 
+    pl_model: pl.LightningModule, 
+    device: str, 
+    levels: List[int], 
+    ontology_path: str, 
+    non_sil_threshold: float, 
+    output_dir: str,
+) -> None:
+    r"""Separate by hierarchy."""
+
+    audioset632_id_to_lb = get_audioset632_id_to_lb(
+        ontology_path=ontology_path)
+
+    at_probs = calculate_segment_at_probs(
+        audio=audio,
+        segment_samples=segment_samples,
+        at_model=at_model,
+        device=device,
+    )
+    # at_probs: (segments_num, condition_dim)
+
+    # Parse and build AudioSet ontology tree
+    root = get_ontology_tree(ontology_path=ontology_path)
+
+    nodes = Node.traverse(root)
+
+    for level in levels:
+
+        print("------ Level {} ------".format(level))
+
+        nodes_level_n = get_nodes_with_level_n(nodes=nodes, level=level)
+
+        hierarchy_at_probs = []
+
+        for node in nodes_level_n:
+
+            class_id = node.class_id
+
+            subclass_indexes = get_children_indexes(node=node)
+            # E.g., [0, 1, ..., 71]
+
+            if len(subclass_indexes) == 0:
+                continue
+
+            sep_audio = separate_by_query_conditions(
+                audio=audio,
+                segment_samples=segment_samples,
+                at_probs=at_probs,
+                subclass_indexes=subclass_indexes,
+                pl_model=pl_model,
+                device=device,
+            )
+            # sep_audio: (audio_samples,)
+
+            # Write out separated audio
+            label = audioset632_id_to_lb[class_id]
+
+            if label in LB_TO_IX.keys():
+                output_name = "{}_{}.wav".format(LB_TO_IX[label], label)
+            else:
+                output_name = "{}.wav".format(label)
+
+            output_path = os.path.join(
+                output_dir,
+                "level={}".format(level),
+                output_name,
+            )
+
+            if np.max(sep_audio) > non_sil_threshold:
+                write_audio(
+                    audio=sep_audio,
+                    output_path=output_path,
+                    sample_rate=sample_rate,
+                )
+
+            hierarchy_at_prob = np.max(at_probs[:, subclass_indexes], axis=-1)
+            hierarchy_at_probs.append(hierarchy_at_prob)
+
+        hierarchy_at_probs = np.stack(hierarchy_at_probs, axis=-1)
+        plt.matshow(
+            hierarchy_at_probs.T,
+            origin="lower",
+            aspect="auto",
+            cmap="jet")
+        plt.savefig("_zz_{}.pdf".format(level))
+
+
+def separate_by_class_ids(
+    audio: np.ndarray, 
+    sample_rate: int, 
+    segment_samples: int, 
+    at_model: nn.Module, 
+    pl_model: pl.LightningModule, 
+    device: str, 
+    class_ids: List[int], 
+    output_dir: str,
+) -> None:
+    r"""Separate by class IDs."""
+
+    at_probs = calculate_segment_at_probs(
+        audio=audio,
+        segment_samples=segment_samples,
+        at_model=at_model,
+        device=device,
+    )
+    # at_probs: (segments_num, condition_dim)
+
+    sep_audio = separate_by_query_conditions(
+        audio=audio,
+        segment_samples=segment_samples,
+        at_probs=at_probs,
+        subclass_indexes=class_ids,
+        pl_model=pl_model,
+        device=device,
+    )
+    # sep_audio: (audio_samples,)
+
+    # Write out separated audio
+    output_name = ";".join(["{}_{}".format(class_id, IX_TO_LB[class_id]) for class_id in class_ids])
+    output_name += ".wav"
+
+    output_path = os.path.join(
+        output_dir,
+        output_name,
+    )
+
+    write_audio(
+        audio=sep_audio,
+        output_path=output_path,
+        sample_rate=sample_rate,
+    )
+
+
+def calculate_query_emb(
+    queries_dir: str, 
+    pl_model: pl.LightningModule, 
+    sample_rate: int, 
+    remove_sil: bool, 
+    segment_samples: int,
+    batch_size=8,
+) -> np.ndarray:
+    r"""Calculate the query embddings of audio files in a directory."""
+    
+    audio_names = sorted(os.listdir(queries_dir))
+
+    avg_query_conditions = []
+
+    # Average query conditions of all audios
+    for audio_index, audio_name in enumerate(audio_names):
+
+        print("{} / {}, {}".format(audio_index, len(audio_names), audio_name))
+
+        audio_path = os.path.join(queries_dir, audio_name)
+
+        audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
+
+        # Remove silence
+        if remove_sil:
+            audio = remove_silence(audio=audio, sample_rate=sample_rate)
+
+        audio_samples = audio.shape[0]
+        
+        segments_num = int(np.ceil(audio_samples / segment_samples))
+
+        segments = []
+
+        # Get all segments
+        for segment_index in range(segments_num):
+
+            begin_sample = segment_index * segment_samples
+            end_sample = begin_sample + segment_samples
+
+            segment = audio[begin_sample : end_sample]
+            segment = repeat_to_length(audio=segment, segment_samples=segment_samples)
+            segments.append(segment)
+
+        segments = np.stack(segments, axis=0)
+
+        # Calcualte query conditions in mini-batch
+        pointer = 0
+        query_conditions = []
+
+        while pointer < len(segments):
+
+            batch_segments = segments[pointer: pointer + batch_size]
+
+            query_condition = _do_query_in_minibatch(
+                batch_segments=batch_segments,
+                query_net=pl_model.query_net,
+            )
+
+            query_conditions.extend(query_condition)
+            pointer += batch_size
+
+        avg_query_condition = np.mean(query_condition, axis=0)
+        avg_query_conditions.append(avg_query_condition)
+
+    # Average query conditions of all audio files
+    avg_query_condition = np.mean(avg_query_conditions, axis=0)
+
+    return avg_query_condition
 
 
 def load_ss_model(
-    configs: Dict, 
-    checkpoint_path: str, 
+    configs: Dict,
+    checkpoint_path: str,
 ) -> nn.Module:
     r"""Load trained universal source separation model.
 
@@ -141,8 +469,11 @@ def load_ss_model(
         configs (Dict)
         checkpoint_path (str): path of the checkpoint to load
         device (str): e.g., "cpu" | "cuda"
+
+    Returns:
+        pl_model: pl.LightningModule
     """
-    
+
     # Initialize query net
     query_net = initialize_query_net(
         configs=configs,
@@ -180,14 +511,14 @@ def load_ss_model(
 
 
 def calculate_segment_at_probs(
-    audio: np.ndarray, 
-    segment_samples: int, 
-    at_model: nn.Module, 
+    audio: np.ndarray,
+    segment_samples: int,
+    at_model: nn.Module,
     device: str,
 ) -> np.ndarray:
-    r"""Split audio into short segments. Calcualte the audio tagging 
+    r"""Split audio into short segments. Calcualte the audio tagging
     predictions of all segments.
-    
+
     Args:
         audio (np.ndarray): (audio_samples,)
         segment_samples (int): short segment duration
@@ -195,10 +526,10 @@ def calculate_segment_at_probs(
         device (str): "cpu" | "cuda"
 
     Returns:
-        at_probs (np.ndarray): audio tagging probabilities on all segments, 
+        at_probs (np.ndarray): audio tagging probabilities on all segments,
             (segments_num, classes_num)
     """
-    
+
     audio_samples = audio.shape[-1]
     pointer = 0
     at_probs = []
@@ -206,17 +537,17 @@ def calculate_segment_at_probs(
     while pointer < audio_samples:
 
         segment = librosa.util.fix_length(
-            data=audio[pointer : pointer + segment_samples],
+            data=audio[pointer: pointer + segment_samples],
             size=segment_samples,
             axis=0,
         )
-        
+
         segments = torch.Tensor(segment).unsqueeze(dim=0).to(device)
         # segments: (batch_size=1, segment_samples)
 
         with torch.no_grad():
             at_model.eval()
-            at_prob = at_model(input=segments)['clipwise_output']
+            at_prob = at_model(input=segments)["clipwise_output"]
 
         at_prob = at_prob.squeeze(dim=0).data.cpu().numpy()
         # at_prob: (classes_num,)
@@ -227,12 +558,11 @@ def calculate_segment_at_probs(
 
     at_probs = np.stack(at_probs, axis=0)
     # at_probs: (segments_num, condition_dim)
-    
+
     return at_probs
 
 
-# def get_nodes_with_level_n(nodes: List[Node], level: int) -> list[Node]:
-def get_nodes_with_level_n(nodes, level):
+def get_nodes_with_level_n(nodes: List[Node], level: int) -> List[Node]:
     r"""Return nodes with level=N."""
 
     nodes_level_n = []
@@ -249,92 +579,18 @@ def get_children_indexes(node: Node) -> List[int]:
 
     nodes_level_n_children = Node.traverse(node=node)
 
-    subclass_indexes = [ID_TO_IX[node.class_id] for node in nodes_level_n_children if node.class_id in ID_TO_IX]
+    subclass_indexes = [ID_TO_IX[node.class_id]
+                        for node in nodes_level_n_children if node.class_id in ID_TO_IX]
 
     return subclass_indexes
 
-'''
-def separate_by_query_conditions(
-    audio: np.ndarray, 
-    segment_samples: int, 
-    at_probs: np.ndarray, 
-    subclass_indexes: List[int], 
-    pl_model: pl.LightningModule, 
-    device: str,
-):
-    r"""Do separation for active segments.
-
-    Args:
-        audio (np.ndarray): audio clip
-        segment_samples (int): segment samples
-        at_probs (np.ndarray): predicted audio tagging probability on segments, 
-            (segments_num, classes_num)
-        subclass_indexes (List[int]): all values in subclass_indexes are 
-            remained to build the condition
-        pl_model (pl.LightningModule): trained universal source separation model
-        device (str), e.g., "cpu" | "cuda"
-    """
-
-    audio_samples = audio.shape[-1]
-    pointer = 0
-    segment_index = 0
-    at_threshold = 0.2
-    sep_audio = []
-
-    while pointer < audio_samples:
-
-        max_prob = np.max(at_probs[segment_index, subclass_indexes])
-
-        if max_prob < at_threshold:
-            # Set separation results to silence for non-active segments
-            sep_segment = np.zeros(segment_samples)
-
-        else:
-            # Only do separation for active segments
-            segment = librosa.util.fix_length(
-                data=audio[pointer : pointer + segment_samples],
-                size=segment_samples,
-                axis=0,
-            )
-
-            segment = torch.Tensor(segment).to(device)[None, :]
-
-            with torch.no_grad():
-                pl_model.query_net.eval()
-
-                bottleneck = pl_model.query_net.forward_base(source=segment)
-                
-                masked_bottleneck = torch.zeros_like(bottleneck)
-                masked_bottleneck[:, subclass_indexes] = bottleneck[:, subclass_indexes]
-
-                condition = pl_model.query_net.forward_adaptor(masked_bottleneck)
-
-            input_dict = {
-                'mixture': torch.Tensor(segment[:, None, :]),
-                'condition': torch.Tensor(condition),
-            }
-
-            with torch.no_grad():
-                pl_model.ss_model.eval()
-                output_dict = pl_model.ss_model(input_dict=input_dict)
-            
-            sep_segment = output_dict['waveform'].squeeze((0, 1)).data.cpu().numpy()
-
-        sep_audio.append(sep_segment)
-        pointer += segment_samples
-        segment_index += 1
-
-    sep_audio = np.concatenate(sep_audio, axis=0)
-
-    return sep_audio
-'''
 
 def separate_by_query_conditions(
-    audio: np.ndarray, 
-    segment_samples: int, 
-    at_probs: np.ndarray, 
-    subclass_indexes: List[int], 
-    pl_model: pl.LightningModule, 
+    audio: np.ndarray,
+    segment_samples: int,
+    at_probs: np.ndarray,
+    subclass_indexes: List[int],
+    pl_model: pl.LightningModule,
     device: str,
 ) -> np.ndarray:
     r"""Do separation for active segments depending on the subclass_indexes.
@@ -342,9 +598,9 @@ def separate_by_query_conditions(
     Args:
         audio (np.ndarray): audio clip
         segment_samples (int): segment samples
-        at_probs (np.ndarray): predicted audio tagging probability on segments, 
+        at_probs (np.ndarray): predicted audio tagging probability on segments,
             (segments_num, classes_num)
-        subclass_indexes (List[int]): all values in subclass_indexes are 
+        subclass_indexes (List[int]): all values in subclass_indexes are
             remained to build the condition
         pl_model (pl.LightningModule): trained universal source separation model
         device (str), e.g., "cpu" | "cuda"
@@ -374,7 +630,7 @@ def separate_by_query_conditions(
             end_sample = begin_sample + segment_samples
 
             segment = librosa.util.fix_length(
-                data=audio[begin_sample : end_sample],
+                data=audio[begin_sample: end_sample],
                 size=segment_samples,
                 axis=0,
             )
@@ -392,13 +648,12 @@ def separate_by_query_conditions(
 
     while pointer < len(active_segments):
 
-        batch_segments = torch.Tensor(active_segments[pointer : pointer + batch_size]).to(device)
+        batch_segments = active_segments[pointer: pointer + batch_size]
 
         batch_sep_segments = _do_sep_in_minibatch(
-            batch_segments=batch_segments, 
+            batch_segments=batch_segments,
             subclass_indexes=subclass_indexes,
-            pl_model=pl_model, 
-            device=device
+            pl_model=pl_model,
         )
         active_sep_segments.extend(batch_sep_segments)
         pointer += batch_size
@@ -409,16 +664,90 @@ def separate_by_query_conditions(
     for i in range(len(active_segment_indexes)):
         sep_segments[active_segment_indexes[i]] = active_sep_segments[i]
 
-    sep_audio = sep_segments.flatten()[0 : audio_samples]
+    sep_audio = sep_segments.flatten()[0: audio_samples]
+
+    return sep_audio
+
+
+def separate_by_query_condition(
+    audio: np.ndarray,
+    segment_samples: int,
+    sample_rate: int,
+    query_condition: np.ndarray,
+    pl_model: pl.LightningModule,
+    output_path: str,
+    batch_size: int = 8,
+) -> np.ndarray:
+    r"""Do separation for active segments depending on the subclass_indexes.
+
+    Args:
+        audio (np.ndarray): audio clip
+        segment_samples (int): segment samples
+        at_probs (np.ndarray): predicted audio tagging probability on segments,
+            (segments_num, classes_num)
+        subclass_indexes (List[int]): all values in subclass_indexes are
+            remained to build the condition
+        pl_model (pl.LightningModule): trained universal source separation model
+        device (str), e.g., "cpu" | "cuda"
+
+    Returns:
+        sep_audio (np.ndarray): separated audio
+    """
+
+    audio_samples = audio.shape[-1]
     
+    segments_num = int(np.ceil(audio_samples / segment_samples))
+
+    segments = []
+
+    # Collect active segments
+    for segment_index in range(segments_num):
+
+        begin_sample = segment_index * segment_samples
+        end_sample = begin_sample + segment_samples
+
+        segment = librosa.util.fix_length(
+            data=audio[begin_sample: end_sample],
+            size=segment_samples,
+            axis=0,
+        )
+
+        segments.append(segment)
+
+    segments = np.stack(segments, axis=0)
+
+    # Do separation in mini-batch
+    pointer = 0
+    sep_segments = []
+    
+    while pointer < len(segments):
+
+        batch_segments = segments[pointer: pointer + batch_size]
+
+        batch_sep_segments = _do_sep_in_minibatch2(
+            batch_segments=batch_segments,
+            query_condition=query_condition,
+            ss_model=pl_model.ss_model,
+        )
+        sep_segments.extend(batch_sep_segments)
+        pointer += batch_size
+
+    sep_segments = np.concatenate(sep_segments, axis=0)
+
+    sep_audio = sep_segments.flatten()[0: audio_samples]
+
+    soundfile.write(file=output_path, data=sep_audio, samplerate=sample_rate)
+    print("Write out separated file to {}".format(output_path))
+
+    from IPython import embed; embed(using=False); os._exit(0)
+
     return sep_audio
 
 
 def _do_sep_in_minibatch(
-    batch_segments: np.ndarray, 
-    subclass_indexes: List[int], 
-    pl_model: pl.LightningModule, 
-    device: str,
+    batch_segments: np.ndarray,
+    subclass_indexes: List[int],
+    pl_model: pl.LightningModule,
 ) -> np.ndarray:
     r"""Separate by mini-batch.
 
@@ -426,11 +755,12 @@ def _do_sep_in_minibatch(
         batch_segments (np.ndarray): (batch_size, segment_samples)
         subclass_indexes (List[int]): a list of subclasses
         pl_model (pl.LightningModule): universal separation model
-        device (str): e.g., "cpu" | "cuda"
 
     Returns:
         batch_sep_segments (np.ndarray): separated mini-batch segments
     """
+
+    device = pl_model.device
 
     batch_segments = torch.Tensor(batch_segments).to(device)
     # shape: (batch_size, segment_samples)
@@ -440,7 +770,7 @@ def _do_sep_in_minibatch(
 
         bottleneck = pl_model.query_net.forward_base(source=batch_segments)
         # bottleneck: (batch_size, bottleneck_dim)
-        
+
         masked_bottleneck = torch.zeros_like(bottleneck)
         masked_bottleneck[:, subclass_indexes] = bottleneck[:, subclass_indexes]
 
@@ -448,23 +778,93 @@ def _do_sep_in_minibatch(
         # condition: (batch_size, condition_dim)
 
     input_dict = {
-        'mixture': torch.Tensor(batch_segments.unsqueeze(1)),
-        'condition': torch.Tensor(condition),
+        "mixture": torch.Tensor(batch_segments.unsqueeze(1)),
+        "condition": torch.Tensor(condition),
     }
 
     with torch.no_grad():
         pl_model.ss_model.eval()
         output_dict = pl_model.ss_model(input_dict=input_dict)
-    
-    batch_sep_segments = output_dict['waveform'].squeeze(dim=1).data.cpu().numpy()
+
+    batch_sep_segments = output_dict["waveform"].squeeze(
+        dim=1).data.cpu().numpy()
     # (batch_size, segment_samples)
 
     return batch_sep_segments
 
 
+def _do_sep_in_minibatch2(
+    batch_segments: np.ndarray,
+    query_condition: np.ndarray,
+    ss_model: nn.Module,
+) -> np.ndarray:
+    r"""Separate by mini-batch.
+
+    Args:
+        batch_segments (np.ndarray): (batch_size, segment_samples)
+        subclass_indexes (List[int]): a list of subclasses
+        pl_model (pl.LightningModule): universal separation model
+
+    Returns:
+        batch_sep_segments (np.ndarray): separated mini-batch segments
+    """
+
+    device = next(ss_model.parameters()).device
+
+    batch_segments = torch.Tensor(batch_segments).to(device).unsqueeze(dim=1)
+    # shape: (batch_size, 1, segment_samples)
+
+    query_condition = torch.Tensor(query_condition).to(device).unsqueeze(dim=0)
+
+    input_dict = {
+        "mixture": batch_segments,
+        "condition": query_condition,
+    }
+
+    with torch.no_grad():
+        ss_model.eval()
+        output_dict = ss_model(input_dict=input_dict)
+
+    batch_sep_segments = output_dict["waveform"].squeeze(
+        dim=1).data.cpu().numpy()
+    # (batch_size, segment_samples)
+
+    return batch_sep_segments
+
+
+def _do_query_in_minibatch(
+    batch_segments: np.ndarray,
+    query_net: nn.Module,
+) -> np.ndarray:
+    r"""Separate by mini-batch.
+
+    Args:
+        batch_segments (np.ndarray): (batch_size, segment_samples)
+        pl_model (pl.LightningModule): universal separation model
+
+    Returns:
+        batch_condition (np.ndarray): mini-batch conditions.
+    """
+
+    device = next(query_net.parameters()).device
+    
+    batch_segments = torch.Tensor(batch_segments).to(device)
+    # shape: (batch_size, segment_samples)
+
+    with torch.no_grad():
+        query_net.eval()
+
+        batch_condition = query_net.forward(source=batch_segments)["output"]
+        # condition: (batch_size, condition_dim)
+
+    batch_condition = batch_condition.data.cpu().numpy()
+
+    return batch_condition
+
+
 def write_audio(
-    audio: np.ndarray, 
-    output_path: str, 
+    audio: np.ndarray,
+    output_path: str,
     sample_rate: int,
 ):
     r"""Write audio to disk.
@@ -483,14 +883,17 @@ def write_audio(
     print("Write out to {}".format(output_path))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--audio_path', type=str)
-    parser.add_argument('--levels', nargs="*", type=int, default=[1, 2, 3])
-    parser.add_argument('--config_yaml', type=str)
-    parser.add_argument('--checkpoint_path', type=str)
-    parser.add_argument('--output_dir', type=str)
+    parser.add_argument("--audio_path", type=str)
+    parser.add_argument("--levels", nargs="*", type=int, default=[])
+    parser.add_argument("--class_ids", nargs="*", type=int, default=[])
+    parser.add_argument("--queries_dir", type=str, default="")
+    parser.add_argument("--query_emb_path", type=str, default="")
+    parser.add_argument("--config_yaml", type=str)
+    parser.add_argument("--checkpoint_path", type=str)
+    parser.add_argument("--output_dir", type=str)
 
     args = parser.parse_args()
 

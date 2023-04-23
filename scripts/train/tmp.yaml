@@ -40,7 +40,7 @@ train:
         lr_lambda_type: constant_warm_up    # linear_warm_up
         warm_up_steps: 10000
         reduce_lr_steps: 1000000
-    batch_size_per_device: 16
+    batch_size_per_device: 4
     precision: 32
     steps_per_epoch: 10000  # Every 10000 steps is called an epoch
     evaluate_step_frequency: 20000     # Evaluate every #evaluate_step_frequency steps
