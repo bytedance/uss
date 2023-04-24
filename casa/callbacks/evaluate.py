@@ -89,8 +89,8 @@ class EvaluateCallback(pl.Callback):
                 logging.info("    Flush tensorboard logs to {}".format(self.summary_writer.log_dir))
 
                 self.statistics_container.append(
-                    step=global_step, 
+                    steps=global_step, 
                     statistics={"sdri_dict": median_sdris_dict}, 
                     split=split,
                     flush=True,
-                )            
+                )         

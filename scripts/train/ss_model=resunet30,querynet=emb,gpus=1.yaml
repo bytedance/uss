@@ -1,6 +1,18 @@
 ---
 task_name: audioset
 
+data:
+    indexes_dict: "hdf5s/indexes/balanced_train.h5"
+    sampler_type: balanced_sampler
+    anchor_segment_detect_mode: max_area  # "max_area" | "random"
+    sample_rate: 32000
+    frames_per_second: 100
+    segment_seconds: 2.0
+    classes_num: 527
+    augmentation:
+        match_energy: True
+    mix_num: 2
+
 sound_event_detection:
     model_type: Cnn14_DecisionLevelMax
     checkpoint_path: "./downloaded_checkpoints/Cnn14_DecisionLevelMax_mAP=0.385.pth"
@@ -13,18 +25,6 @@ query_net:
     freeze_adaptor: False
     bottleneck_type: embedding  # "embedding" | "at_soft"
     outputs_num: 2048
-
-data:
-    indexes_dict: "hdf5s/indexes/balanced_train.h5"
-    sampler_type: balanced_sampler
-    anchor_segment_detect_mode: max_area  # "max_area" | "random"
-    sample_rate: 32000
-    frames_per_second: 100
-    segment_seconds: 2.0
-    classes_num: 527
-    augmentation:
-        match_energy: True
-    mix_num: 2
 
 ss_model:
     model_type: ResUNet30

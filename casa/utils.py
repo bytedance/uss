@@ -164,36 +164,23 @@ class StatisticsContainer(object):
 
         self.backup_statistics_path = "{}_{}.pkl".format(
             os.path.splitext(self.statistics_path)[0],
-            datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+            datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"),
+        )
 
-        self.statistics_dict = {"balanced_train": [], "test": [], "valid": []}
+        self.statistics_dict = {"balanced_train": [], "test": []}
 
-    def append(self, step, statistics, data_type):
-        statistics["step"] = step
-        self.statistics_dict[data_type].append(statistics)
+    def append(self, steps, statistics, split, flush=True):
+        statistics["steps"] = steps
+        self.statistics_dict[split].append(statistics)
 
-    def dump(self):
+        if flush:
+            self.flush()
+
+    def flush(self):
         pickle.dump(self.statistics_dict, open(self.statistics_path, "wb"))
-        pickle.dump(
-            self.statistics_dict, open(
-                self.backup_statistics_path, "wb"))
+        pickle.dump(self.statistics_dict, open(self.backup_statistics_path, "wb"))
         logging.info("    Dump statistics to {}".format(self.statistics_path))
-        logging.info(
-            "    Dump statistics to {}".format(
-                self.backup_statistics_path))
-
-    def load_state_dict(self, resume_step):
-        self.statistics_dict = pickle.load(open(self.statistics_path, "rb"))
-
-        resume_statistics_dict = {
-            "balanced_train": [], "test": [], "valid": []}
-
-        for key in self.statistics_dict.keys():
-            for statistics in self.statistics_dict[key]:
-                if statistics["step"] <= resume_step:
-                    resume_statistics_dict[key].append(statistics)
-
-        self.statistics_dict = resume_statistics_dict
+        logging.info("    Dump statistics to {}".format(self.backup_statistics_path))
 
 
 def get_mean_sdr_from_dict(sdris_dict):
