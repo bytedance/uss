@@ -239,7 +239,7 @@ def get_dirs(
         workspace,
         "checkpoints",
         filename,
-        "config={},devices={}".format(yaml_name, devices_num),
+        "{},devices={}".format(yaml_name, devices_num),
     )
     os.makedirs(checkpoints_dir, exist_ok=True)
 
@@ -248,7 +248,7 @@ def get_dirs(
         workspace,
         "logs",
         filename,
-        "config={},devices={}".format(yaml_name, devices_num),
+        "{},devices={}".format(yaml_name, devices_num),
     )
     os.makedirs(logs_dir, exist_ok=True)
 
@@ -260,7 +260,7 @@ def get_dirs(
         workspace,
         "tf_logs",
         filename,
-        "config={},devices={}".format(yaml_name, devices_num),
+        "{},devices={}".format(yaml_name, devices_num),
     )
 
     # Directory to save statistics
@@ -268,7 +268,7 @@ def get_dirs(
         workspace,
         "statistics",
         filename,
-        "config={},devices={}".format(yaml_name, devices_num),
+        "{},devices={}".format(yaml_name, devices_num),
         "statistics.pkl",
     )
     os.makedirs(os.path.dirname(statistics_path), exist_ok=True)
