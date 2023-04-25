@@ -627,8 +627,6 @@ def separate_by_query_condition(
     soundfile.write(file=output_path, data=sep_audio, samplerate=sample_rate)
     print("Write out separated file to {}".format(output_path))
 
-    from IPython import embed; embed(using=False); os._exit(0)
-
     return sep_audio
 
 
@@ -771,8 +769,8 @@ def write_audio(
     print("Write out to {}".format(output_path))
 
 
-def separate2():
-    print("asdf")
+# def separate2():
+#     print("asdf")
 
 
 if __name__ == "__main__":
@@ -783,10 +781,10 @@ if __name__ == "__main__":
     parser.add_argument("--class_ids", nargs="*", type=int, default=[])
     parser.add_argument("--queries_dir", type=str, default="")
     parser.add_argument("--query_emb_path", type=str, default="")
-    parser.add_argument("--config_yaml", type=str)
-    parser.add_argument("--checkpoint_path", type=str)
+    parser.add_argument("--config_yaml", type=str, default="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml")
+    parser.add_argument("--checkpoint_path", type=str, default="./downloaded_checkpoints/ss_model=resunet30,querynet=at_soft,full,devices=8,step=100000.ckpt")
     parser.add_argument("--output_dir", type=str)
 
     args = parser.parse_args()
 
-    separate2(args)
+    separate(args)
