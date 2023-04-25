@@ -21,118 +21,6 @@ from casa.utils import (get_audioset632_id_to_lb, load_pretrained_panns,
                         parse_yaml, remove_silence, repeat_to_length)
 
 
-'''
-def separate(args) -> None:
-    r"""Do separation for active sound classes."""
-
-    # Arguments & parameters
-    audio_path = args.audio_path
-    levels = args.levels
-    config_yaml = args.config_yaml
-    checkpoint_path = args.checkpoint_path
-    output_dir = args.output_dir
-
-    non_sil_threshold = 1e-6
-    device = "cuda"
-    ontology_path = "./metadata/ontology.json"
-
-    configs = parse_yaml(config_yaml)
-    sample_rate = configs["data"]["sample_rate"]
-    segment_seconds = configs["data"]["segment_seconds"]
-    segment_samples = int(sample_rate * segment_seconds)
-
-    audioset632_id_to_lb = get_audioset632_id_to_lb(
-        ontology_path=ontology_path)
-
-    # Create directory
-    if not output_dir:
-        output_dir = os.path.join(
-            "separated_results",
-            pathlib.Path(audio_path).stem)
-
-    # Load pretrained universal source separation model
-    pl_model = load_ss_model(
-        configs=configs,
-        checkpoint_path=checkpoint_path,
-    ).to(device)
-
-    # Load audio
-    audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
-
-    # Load pretrained audio tagging model
-    at_model = load_pretrained_panns(
-        model_type="Cnn14",
-        checkpoint_path="./downloaded_checkpoints/Cnn14_mAP=0.431.pth",
-        freeze=True,
-    ).to(device)
-
-    at_probs = calculate_segment_at_probs(
-        audio=audio,
-        segment_samples=segment_samples,
-        at_model=at_model,
-        device=device,
-    )
-    # at_probs: (segments_num, condition_dim)
-
-    # Parse and build AudioSet ontology tree
-    root = get_ontology_tree(ontology_path=ontology_path)
-
-    nodes = Node.traverse(root)
-
-    for level in levels:
-
-        print("------ Level {} ------".format(level))
-
-        nodes_level_n = get_nodes_with_level_n(nodes=nodes, level=level)
-
-        hierarchy_at_probs = []
-
-        for node in nodes_level_n:
-
-            class_id = node.class_id
-
-            subclass_indexes = get_children_indexes(node=node)
-            # E.g., [0, 1, ..., 71]
-
-            if len(subclass_indexes) == 0:
-                continue
-
-            sep_audio = separate_by_query_conditions(
-                audio=audio,
-                segment_samples=segment_samples,
-                at_probs=at_probs,
-                subclass_indexes=subclass_indexes,
-                pl_model=pl_model,
-                device=device,
-            )
-            # sep_audio: (audio_samples,)
-
-            # Write out separated audio
-            label = audioset632_id_to_lb[class_id]
-            output_path = os.path.join(
-                output_dir,
-                "level={}".format(level),
-                "{}.wav".format(label))
-
-            if np.max(sep_audio) > non_sil_threshold:
-                write_audio(
-                    audio=sep_audio,
-                    output_path=output_path,
-                    sample_rate=sample_rate,
-                )
-
-            hierarchy_at_prob = np.max(at_probs[:, subclass_indexes], axis=-1)
-            hierarchy_at_probs.append(hierarchy_at_prob)
-
-        hierarchy_at_probs = np.stack(hierarchy_at_probs, axis=-1)
-        plt.matshow(
-            hierarchy_at_probs.T,
-            origin="lower",
-            aspect="auto",
-            cmap="jet")
-        plt.savefig("_zz_{}.pdf".format(level))
-'''
-
 def separate(args) -> None:
     r"""Do separation for active sound classes."""
 
@@ -883,6 +771,10 @@ def write_audio(
     print("Write out to {}".format(output_path))
 
 
+def separate2():
+    print("asdf")
+
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
@@ -897,4 +789,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    separate(args)
+    separate2(args)

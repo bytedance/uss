@@ -36,5 +36,11 @@ python3 casa/plot.py
 CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
-    --config_yaml="./scripts/train/tmp.yaml" \
-    --checkpoint_path="./workspaces/casa/checkpoints/train/config=tmp,devices=1/step=1.ckpt"
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml" \
+    --checkpoint_path="./workspaces/casa/checkpoints/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/step=500000.ckpt"
+
+CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py \
+    --audio_path=./resources/harry_potter.flac \
+    --levels 1 2 3 \
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml" \
+    --checkpoint_path="./workspaces/casa/checkpoints/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/step=500000.ckpt"
