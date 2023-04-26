@@ -31,6 +31,6 @@ class CheckpointEveryNSteps(pl.Callback):
 
             ckpt_path = os.path.join(
                 self.checkpoints_dir,
-                "step={}.ckpt".format(global_step))
+                "steps={}.ckpt".format(global_step))
             trainer.save_checkpoint(ckpt_path)
             print("Save checkpoint to {}".format(ckpt_path))

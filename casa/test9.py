@@ -1,18 +1,19 @@
-import os
-import re
-import librosa
-import time
+# import os
+# import re
+# import librosa
+# import time
 
-from casa.utils import calculate_sdr
-from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, 
+# from casa.utils import calculate_sdr
+# from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, 
 
-from casa.data.anchor_segment_detectors import AnchorSegmentDetector
-from casa.data.anchor_segment_mixers import AnchorSegmentMixer
-from casa.data.query_condition_extractors import QueryConditionExtractor
-from casa.models.pl_modules import LitSeparation
-from casa.models.resunet import *
+# from casa.data.anchor_segment_detectors import AnchorSegmentDetector
+# from casa.data.anchor_segment_mixers import AnchorSegmentMixer
+# from casa.data.query_condition_extractors import QueryConditionExtractor
+# from casa.models.pl_modules import LitSeparation
+# from casa.models.resunet import *
 
-from torch.utils.tensorboard import SummaryWriter
+# from torch.utils.tensorboard import SummaryWriter
+import torch
 
 
 class AudiosetEvaluator:
@@ -181,6 +182,7 @@ def add4():
 
     from IPython import embed; embed(using=False); os._exit(0)
     
+
 from typing import List, NoReturn
 def sub() -> NoReturn:
     raise Exception
@@ -190,6 +192,42 @@ def add5():
     a1 = sub()
     from IPython import embed; embed(using=False); os._exit(0)
 
+def add6():
+    import numpy as np
+    from datasets import load_dataset
+    dataset = load_dataset("mnist", split="train")
+
+    for x in dataset:
+        print(np.array(x['image']))
+        print(x['label'])
+        break
+
+
+def get_meta_dataframe(meta_csv_path):
+
+    if not os.path.isfile(meta_csv_path):
+
+        os.makedirs(os.path.dirname(meta_csv_path), exist_ok=True)
+
+        os.system("wget -O {} {}".format(meta_csv_path, "https://sandbox.zenodo.org/record/1186898/files/class_labels_indices.csv?download=1"))
+
+        print("Download to {}".format(meta_csv_path))
+
+    df = pd.read_csv(meta_csv_file, sep=',')
+
+    return df
+
+
+def add7():
+    import os
+    from pathlib import Path
+
+    meta_csv_path = os.path.join(Path.home(), ".cache/metadata/class_labels_indices.csv")
+
+    df = get_meta_dataframe(meta_csv_path)
+
+    from IPython import embed; embed(using=False); os._exit(0)
+
 if __name__ == '__main__':
 
-    add5()
+    add7()

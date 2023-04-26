@@ -2,7 +2,7 @@ import argparse
 import os
 import time
 import pickle
-import pathlib
+from pathlib import Path
 from typing import Dict, List
 
 import librosa
@@ -13,7 +13,7 @@ import soundfile
 import torch
 import torch.nn as nn
 
-from casa.config import ID_TO_IX, LB_TO_IX, IX_TO_LB
+from casa.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, get_ontology_path
 from casa.models.pl_modules import LitSeparation, get_model_class
 from casa.models.query_nets import initialize_query_net
 from casa.parse_ontology import Node, get_ontology_tree
@@ -36,7 +36,7 @@ def separate(args) -> None:
 
     non_sil_threshold = 1e-6
     device = "cuda"
-    ontology_path = "./metadata/ontology.json"
+    ontology_path = get_ontology_path()
 
     configs = parse_yaml(config_yaml)
     sample_rate = configs["data"]["sample_rate"]
@@ -47,7 +47,7 @@ def separate(args) -> None:
     if not output_dir:
         output_dir = os.path.join(
             "separated_results",
-            pathlib.Path(audio_path).stem)
+            Path(audio_path).stem)
 
     # Load pretrained universal source separation model
     pl_model = load_ss_model(
@@ -121,14 +121,14 @@ def separate(args) -> None:
 
         print("Time: {:.3f} s".format(time.time() - query_time))
         
-        pickle_path = os.path.join("./query_conditions", "config={}".format(pathlib.Path(config_yaml).stem), "{}.pkl".format(pathlib.Path(queries_dir).stem))
+        pickle_path = os.path.join("./query_conditions", "config={}".format(Path(config_yaml).stem), "{}.pkl".format(Path(queries_dir).stem))
         
         os.makedirs(os.path.dirname(pickle_path), exist_ok=True)
 
         pickle.dump(query_condition, open(pickle_path, 'wb'))
         print("Write query condition to {}".format(pickle_path))
 
-        output_path = os.path.join(output_dir, "query={}.wav".format(pathlib.Path(queries_dir).stem))
+        output_path = os.path.join(output_dir, "query={}.wav".format(Path(queries_dir).stem))
 
         separate_by_query_condition(
             audio=audio, 
