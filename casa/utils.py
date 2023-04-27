@@ -2,6 +2,7 @@ import datetime
 import json
 import logging
 import os
+from pathlib import Path
 import librosa
 import pickle
 from typing import Dict
@@ -227,3 +228,18 @@ def repeat_to_length(audio: np.ndarray, segment_samples: int) -> np.ndarray:
     audio = np.tile(audio, repeats_num)[0 : segment_samples]
 
     return audio
+
+
+def get_path(meta, re_download=False):
+
+    path = meta["path"]
+    remote_path = meta["remote_path"]
+    size = meta["size"]
+
+    if not Path(path).is_file() or Path(path).stat().st_size != size or re_download:
+
+        Path(path).parents[0].mkdir(parents=True, exist_ok=True)
+        os.system("wget -O {} {}".format(path, remote_path))
+        print("Download to {}".format(path))
+
+    return path

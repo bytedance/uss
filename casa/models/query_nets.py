@@ -3,8 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from casa.utils import load_pretrained_panns
+from casa.utils import load_pretrained_panns, get_path
 from casa.models.base import init_layer
+from casa.config import panns_paths_dict
 
 
 def initialize_query_net(configs):
@@ -19,9 +20,12 @@ def initialize_query_net(configs):
 
     model_type = configs["query_net"]["model_type"]
     bottleneck_type = configs["query_net"]["bottleneck_type"]
-    base_checkpoint_path = configs["query_net"]["base_checkpoint_path"]
+    # base_checkpoint_path = configs["query_net"]["base_checkpoint_path"]
+    base_checkpoint_type = configs["query_net"]["base_checkpoint_type"]
     freeze_base = configs["query_net"]["freeze_base"]
     outputs_num = configs["query_net"]["outputs_num"]
+
+    base_checkpoint_path = get_path(panns_paths_dict[base_checkpoint_type])
 
     if model_type == "Cnn14_Wrapper":
 

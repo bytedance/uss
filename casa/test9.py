@@ -14,6 +14,7 @@
 
 # from torch.utils.tensorboard import SummaryWriter
 import torch
+from pathlib import Path
 
 
 class AudiosetEvaluator:
@@ -228,6 +229,40 @@ def add7():
 
     from IPython import embed; embed(using=False); os._exit(0)
 
+
+def get_path_and_download(meta, re_download=False):
+
+    path = meta["path"]
+    remote_path = meta["remote_path"]
+    size = meta["size"]
+
+    if not Path(path).is_file() or Path(path).stat().st_size != size or re_download:
+
+        Path(path).parents[0].mkdir(parents=True, exist_ok=True)
+        os.system("wget -O {} {}".format(path, remote_path))
+        print("Download to {}".format(path))
+
+    return path
+
+
+paths_dict = {
+    "class_labels_indices.csv": {
+        "path": Path(Path.home(), ".cache/metadata/class_labels_indices.csv"),
+        "remote_path": "https://sandbox.zenodo.org/record/1186898/files/class_labels_indices.csv?download=1",
+        "size": 14675,
+    },
+    "ontology.csv": {
+        "path": Path(Path.home(), ".cache/metadata/ontology.json"),
+        "remote_path": "https://sandbox.zenodo.org/record/1186898/files/ontology.json?download=1",
+        "size": 342780,
+    },
+}
+
+
+def add8():
+    get_path(meta=paths_dict["ontology.csv"])
+
+
 if __name__ == '__main__':
 
-    add7()
+    add8()

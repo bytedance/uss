@@ -13,12 +13,12 @@ import soundfile
 import torch
 import torch.nn as nn
 
-from casa.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, get_ontology_path
+from casa.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, csv_paths_dict, panns_paths_dict, model_paths_dict
 from casa.models.pl_modules import LitSeparation, get_model_class
 from casa.models.query_nets import initialize_query_net
 from casa.parse_ontology import Node, get_ontology_tree
 from casa.utils import (get_audioset632_id_to_lb, load_pretrained_panns,
-                        parse_yaml, remove_silence, repeat_to_length)
+                        parse_yaml, remove_silence, repeat_to_length, get_path)
 
 
 def separate(args) -> None:
@@ -36,7 +36,7 @@ def separate(args) -> None:
 
     non_sil_threshold = 1e-6
     device = "cuda"
-    ontology_path = get_ontology_path()
+    ontology_path = get_path(csv_paths_dict["ontology.csv"])
 
     configs = parse_yaml(config_yaml)
     sample_rate = configs["data"]["sample_rate"]
@@ -59,9 +59,11 @@ def separate(args) -> None:
     audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
 
     # Load pretrained audio tagging model
+    at_model_type = "Cnn14"
+
     at_model = load_pretrained_panns(
-        model_type="Cnn14",
-        checkpoint_path="./downloaded_checkpoints/Cnn14_mAP=0.431.pth",
+        model_type=at_model_type,
+        checkpoint_path=get_path(panns_paths_dict[at_model_type]),
         freeze=True,
     ).to(device)
 
@@ -769,22 +771,45 @@ def write_audio(
     print("Write out to {}".format(output_path))
 
 
-# def separate2():
-#     print("asdf")
-
-
-if __name__ == "__main__":
+def main():
+    from IPython import embed; embed(using=False); os._exit(0)
 
     parser = argparse.ArgumentParser()
+
     parser.add_argument("--audio_path", type=str)
+    parser.add_argument("--condition_type", type=str, default="at_soft")
     parser.add_argument("--levels", nargs="*", type=int, default=[])
     parser.add_argument("--class_ids", nargs="*", type=int, default=[])
     parser.add_argument("--queries_dir", type=str, default="")
     parser.add_argument("--query_emb_path", type=str, default="")
-    parser.add_argument("--config_yaml", type=str, default="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml")
-    parser.add_argument("--checkpoint_path", type=str, default="./downloaded_checkpoints/ss_model=resunet30,querynet=at_soft,full,devices=8,step=100000.ckpt")
-    parser.add_argument("--output_dir", type=str)
+    parser.add_argument("--output_dir", type=str, default="")
 
     args = parser.parse_args()
 
+    condition_type = args.condition_type
+
+    args.config_yaml = get_path(meta=model_paths_dict[condition_type]["config_yaml"])
+    args.checkpoint_path = get_path(meta=model_paths_dict[condition_type]["checkpoint"])
+
     separate(args)
+
+
+if __name__ == "__main__":
+    # from IPython import embed; embed(using=False); os._exit(0)
+    # import sys
+    main()
+    pass
+
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("--audio_path", type=str)
+    # parser.add_argument("--levels", nargs="*", type=int, default=[])
+    # parser.add_argument("--class_ids", nargs="*", type=int, default=[])
+    # parser.add_argument("--queries_dir", type=str, default="")
+    # parser.add_argument("--query_emb_path", type=str, default="")
+    # parser.add_argument("--config_yaml", type=str, default="")
+    # parser.add_argument("--checkpoint_path", type=str, default="")
+    # parser.add_argument("--output_dir", type=str)
+
+    # args = parser.parse_args()
+
+    # separate(args)

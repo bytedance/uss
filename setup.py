@@ -15,9 +15,10 @@ setup(
     include_package_data=True,
     # package_dir={"": "casa"},
     entry_points={
-        'console_scripts': ['casa=casa.tmp:add'],
+        # 'console_scripts': ['casa=casa.tmp:add'],
+        'console_scripts': ['casa=casa.tmp'],
         # 'console_scripts': ['casa=casa.inference:separate'],
-        # 'console_scripts': ['casa=casa.inference'],
+        # 'console_scripts': ['casa=casa.inference:main'],
         
     },
 )

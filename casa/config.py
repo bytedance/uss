@@ -2,35 +2,49 @@ import os
 from pathlib import Path
 import pandas as pd
 
-
-def get_meta_csv_path(re_download=False):
-
-    meta_csv_path = Path(Path.home(), ".cache/metadata/class_labels_indices.csv")
-
-    if not meta_csv_path.is_file() or re_download:
-
-        Path(meta_csv_path).parents[0].mkdir(parents=True, exist_ok=True)
-
-        os.system("wget -O {} {}".format(meta_csv_path, "https://sandbox.zenodo.org/record/1186898/files/class_labels_indices.csv?download=1"))
-
-        print("Download to {}".format(meta_csv_path))
-
-    return meta_csv_path
+from casa.utils import get_path
 
 
-def get_ontology_path(re_download=False):
+csv_paths_dict = {
+    "class_labels_indices.csv": {
+        "path": Path(Path.home(), ".cache/casa/metadata/class_labels_indices.csv"),
+        "remote_path": "https://sandbox.zenodo.org/record/1186898/files/class_labels_indices.csv?download=1",
+        "size": 14675,
+    },
+    "ontology.csv": {
+        "path": Path(Path.home(), ".cache/casa/metadata/ontology.json"),
+        "remote_path": "https://sandbox.zenodo.org/record/1186898/files/ontology.json?download=1",
+        "size": 342780,
+    },
+}
 
-    ontology_path = Path(Path.home(), ".cache/metadata/ontology.json")
+panns_paths_dict = {
+    "Cnn14": {
+        "path": Path(Path.home(), ".cache/panns/Cnn14_mAP=0.431.pth"),
+        "remote_path": "https://zenodo.org/record/3987831/files/Cnn14_mAP%3D0.431.pth?download=1",
+        "size": 327428481,
+    },
+    "Cnn14_DecisionLevelMax": {
+        "path": Path(Path.home(), ".cache/panns/Cnn14_DecisionLevelMax_mAP=0.385.pth"),
+        "remote_path": "https://zenodo.org/record/3987831/files/Cnn14_DecisionLevelMax_mAP%3D0.385.pth?download=1",
+        "size": 327428481,
+    },
+}
 
-    if not ontology_path.is_file() or re_download:
-
-        Path(ontology_path).parents[0].mkdir(parents=True, exist_ok=True)
-
-        os.system("wget -O {} {}".format(ontology_path, "https://sandbox.zenodo.org/record/1186898/files/ontology.json?download=1"))
-
-        print("Download to {}".format(ontology_path))
-
-    return ontology_path
+model_paths_dict = {
+    "at_soft": {
+        "config_yaml": {
+            "path": Path(Path.home(), ".cache/casa/scripts/ss_model=resunet30,querynet=at_soft,data=full.yaml"),
+            "remote_path": "https://sandbox.zenodo.org/record/1187598/files/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull.yaml?download=1",
+            "size": 1558,
+        },
+        "checkpoint": {
+            "path": Path(Path.home(), ".cache/casa/checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=100000.ckpt"),
+            "remote_path": "https://sandbox.zenodo.org/record/1186898/files/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D100000.ckpt?download=1",
+            "size": 1121024828,
+        },
+    }
+}
 
 
 SAMPLE_RATE = 32000
@@ -39,7 +53,8 @@ CLIP_SAMPLES = int(SAMPLE_RATE * CLIP_SECONDS)
 FRAMES_PER_SECOND = 100
 
 # Parse metadata
-meta_csv_path = get_meta_csv_path()
+meta_csv_path = get_path(meta=csv_paths_dict["class_labels_indices.csv"])
+
 df = pd.read_csv(meta_csv_path, sep=',')
 
 IDS = df["mid"].tolist()

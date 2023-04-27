@@ -15,12 +15,11 @@ data:
 
 sound_event_detection:
     model_type: Cnn14_DecisionLevelMax
-    checkpoint_path: "./downloaded_checkpoints/Cnn14_DecisionLevelMax_mAP=0.385.pth"
     freeze: True
 
 query_net:
     model_type: Cnn14_Wrapper  # "Cnn14_Wrapper" | "AdaptiveCnn14_Wrapper"
-    base_checkpoint_path: "./downloaded_checkpoints/Cnn14_mAP=0.431.pth"
+    base_checkpoint_type: "Cnn14"
     freeze_base: True
     freeze_adaptor: False
     bottleneck_type: at_soft  # "embedding" | "at_soft"
@@ -37,7 +36,7 @@ train:
     optimizer:
         optimizer_type: AdamW
         learning_rate: 1e-3
-        lr_lambda_type: constant_warm_up    # linear_warm_up
+        lr_lambda_type: constant_warm_up    # "constant_warm_up" | "linear_warm_up"
         warm_up_steps: 10000
         reduce_lr_steps: 1000000
     batch_size_per_device: 16
