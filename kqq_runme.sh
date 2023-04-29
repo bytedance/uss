@@ -44,3 +44,9 @@ CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py \
     --levels 1 2 3 \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml" \
     --checkpoint_path="./workspaces/casa/checkpoints/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/step=500000.ckpt"
+
+### evaluate on musdb18
+CUDA_VISIBLE_DEVICES=3 python3 casa/evaluate_musdb18.py \
+    --queries_dir="resources/queries/drums" \
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml" \
+    --checkpoint_path="./workspaces/casa/checkpoints/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/step=500000.ckpt"

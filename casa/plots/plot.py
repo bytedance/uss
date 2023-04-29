@@ -34,7 +34,11 @@ def add():
 def add2():
 
     # stat_path = "./workspaces/casa/statistics/train/config=ss_model=resunet30,querynet=at_soft_adapt,gpus=1,devices=1/statistics.pkl"
-    stat_path = "./workspaces/casa/statistics/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/statistics.pkl"
+
+    # stat_path = "./workspaces/casa/statistics/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/statistics.pkl"
+
+    stat_path = "/home/tiger/test9/statistics.pkl"
+
     stats_dict = pickle.load(open(stat_path, 'rb'))
 
     sdris = []

@@ -141,6 +141,21 @@ def separate(args) -> None:
             output_path=output_path,
         )
 
+    elif Path(query_emb_path).is_file():
+        
+        query_condition = pickle.load(open(query_emb_path, 'rb'))
+
+        output_path = os.path.join(output_dir, "query={}.wav".format(Path('111').stem))
+
+        separate_by_query_condition(
+            audio=audio, 
+            segment_samples=segment_samples, 
+            sample_rate=sample_rate,
+            query_condition=query_condition,
+            pl_model=pl_model,
+            output_path=output_path,
+        )
+
 
 def separate_by_hierarchy(
     audio: np.ndarray, 
@@ -322,6 +337,9 @@ def calculate_query_emb(
             segment = repeat_to_length(audio=segment, segment_samples=segment_samples)
             segments.append(segment)
 
+        if len(segments) == 0:
+            continue
+
         segments = np.stack(segments, axis=0)
 
         # Calcualte query conditions in mini-batch
@@ -340,7 +358,7 @@ def calculate_query_emb(
             query_conditions.extend(query_condition)
             pointer += batch_size
 
-        avg_query_condition = np.mean(query_condition, axis=0)
+        avg_query_condition = np.mean(query_conditions, axis=0)
         avg_query_conditions.append(avg_query_condition)
 
     # Average query conditions of all audio files
@@ -626,6 +644,7 @@ def separate_by_query_condition(
 
     sep_audio = sep_segments.flatten()[0: audio_samples]
 
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     soundfile.write(file=output_path, data=sep_audio, samplerate=sample_rate)
     print("Write out separated file to {}".format(output_path))
 
@@ -772,7 +791,7 @@ def write_audio(
 
 
 def main():
-    from IPython import embed; embed(using=False); os._exit(0)
+    # from IPython import embed; embed(using=False); os._exit(0)
 
     parser = argparse.ArgumentParser()
 
@@ -797,19 +816,19 @@ def main():
 if __name__ == "__main__":
     # from IPython import embed; embed(using=False); os._exit(0)
     # import sys
-    main()
-    pass
+    # main()
+    # pass
 
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--audio_path", type=str)
-    # parser.add_argument("--levels", nargs="*", type=int, default=[])
-    # parser.add_argument("--class_ids", nargs="*", type=int, default=[])
-    # parser.add_argument("--queries_dir", type=str, default="")
-    # parser.add_argument("--query_emb_path", type=str, default="")
-    # parser.add_argument("--config_yaml", type=str, default="")
-    # parser.add_argument("--checkpoint_path", type=str, default="")
-    # parser.add_argument("--output_dir", type=str)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--audio_path", type=str)
+    parser.add_argument("--levels", nargs="*", type=int, default=[])
+    parser.add_argument("--class_ids", nargs="*", type=int, default=[])
+    parser.add_argument("--queries_dir", type=str, default="")
+    parser.add_argument("--query_emb_path", type=str, default="")
+    parser.add_argument("--config_yaml", type=str, default="")
+    parser.add_argument("--checkpoint_path", type=str, default="")
+    parser.add_argument("--output_dir", type=str)
 
-    # args = parser.parse_args()
+    args = parser.parse_args()
 
-    # separate(args)
+    separate(args)

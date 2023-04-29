@@ -263,6 +263,29 @@ def add8():
     get_path(meta=paths_dict["ontology.csv"])
 
 
+def add9():
+    
+    import museval
+    import librosa
+    import numpy as np
+
+    sample_rate = 32000
+    source_type = "vocals"
+
+    target_path = "resources/queries/{}/{}.wav".format(source_type, source_type)
+    # output_path = "separated_results/mixture/query={}.wav".format(source_type)
+    output_path = "separated_results/mixture/query={}.wav".format(111)
+
+    target, fs = librosa.load(path=target_path, sr=sample_rate, mono=True)
+    output, fs = librosa.load(path=output_path, sr=sample_rate, mono=True)
+
+    (sdrs, _, _, _) = museval.evaluate(target[None, :, None], output[None, :, None])  # (nsrc, nsampl, nchan)
+
+    print(np.nanmedian(sdrs))
+    
+    from IPython import embed; embed(using=False); os._exit(0)
+
+
 if __name__ == '__main__':
 
-    add8()
+    add9()
