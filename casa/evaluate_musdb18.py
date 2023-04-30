@@ -124,21 +124,27 @@ def evaluate(args):
         
     query_condition = pickle.load(open(query_emb_path, 'rb'))
 
-    mixtures_dir = "./_tmp_wav/mixture"
-    targets_dir = Path("./_tmp_wav", Path(query_emb_path).stem)
+    audio_paths = sorted(list(Path("/home/tiger/datasets/musdb18hq/test").rglob("*/mixture.wav")))
+    # target_paths = sorted(list(Path("/home/tiger/datasets/musdb18hq/test").rglob("*/{}.wav".format(Path(query_emb_path).stem))))
 
-    audio_paths = sorted(list(Path(mixtures_dir).glob("*.wav")))
+    # mixtures_dir = "./_tmp_wav/mixture"
+    # targets_dir = Path("./_tmp_wav", Path(query_emb_path).stem)
+
+    # from IPython import embed; embed(using=False); os._exit(0)
+
+    # audio_paths = sorted(list(Path(mixtures_dir).glob("*.wav")))
 
     all_median_sdrs = []
 
-    for audio_path in audio_paths:
+    for n, audio_path in enumerate(audio_paths):
 
         audio, _ = librosa.load(path=audio_path, sr=sample_rate, mono=True)
 
-        target_path = Path(targets_dir, Path(audio_path.name))
-        target, _ = librosa.load(path=audio_path, sr=sample_rate, mono=True)
+        # target_path = Path(targets_dir, Path(audio_path.name))
+        target_path = Path(Path(audio_path).parent, "{}.wav".format(Path(query_emb_path).stem))
+        target, _ = librosa.load(path=target_path, sr=sample_rate, mono=True)
 
-        output_path = Path("_tmp_sep", Path(config_yaml).stem, Path(query_emb_path).stem, Path(audio_path).name)
+        output_path = Path("_tmp_sep", Path(config_yaml).stem, Path(query_emb_path).stem, "{}.wav".format(Path(audio_path).parent.name))
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
@@ -168,7 +174,7 @@ if __name__ == '__main__':
 
     parser_link = subparsers.add_parser("link")
 
-    parser_a = subparsers.add_parser("calculate_emb")
+    parser_a = subparsers.add_parser("calculate_condition")
     parser_a.add_argument("--queries_dir", type=str, default="")
     parser_a.add_argument("--query_emb_path", type=str, default="")
     parser_a.add_argument("--config_yaml", type=str, default="")
@@ -184,7 +190,7 @@ if __name__ == '__main__':
     if args.mode == "link":
         add(args)
 
-    elif args.mode == "calculate_emb":
+    elif args.mode == "calculate_condition":
         calcualte_condition(args)
 
     elif args.mode == "evaluate":
