@@ -5,6 +5,7 @@ import pickle
 from pathlib import Path
 from typing import Dict, List
 
+import museval
 import librosa
 import lightning.pytorch as pl
 import matplotlib.pyplot as plt
@@ -19,7 +20,7 @@ from casa.models.query_nets import initialize_query_net
 from casa.parse_ontology import Node, get_ontology_tree
 from casa.utils import (get_audioset632_id_to_lb, load_pretrained_panns,
                         parse_yaml, remove_silence, repeat_to_length, get_path)
-from casa.inference import load_ss_model, calculate_query_emb
+from casa.inference import load_ss_model, calculate_query_emb, separate_by_query_condition
 
 
 def add(args):
@@ -29,7 +30,7 @@ def add(args):
     audio_names = sorted(os.listdir(dataset_root))
 
     # source_type = "drums"
-    source_types = ["vocals", "bass", "drums", "other"]
+    source_types = ["vocals", "bass", "drums", "other", "mixture"]
 
     for source_type in source_types:
 
@@ -44,8 +45,6 @@ def add(args):
             os.system(string)
             print(string)
 
-    from IPython import embed; embed(using=False); os._exit(0)
-
 
 def calcualte_condition(args) -> None:
     r"""Do separation for active sound classes."""
@@ -55,7 +54,6 @@ def calcualte_condition(args) -> None:
     query_emb_path = args.query_emb_path
     config_yaml = args.config_yaml
     checkpoint_path = args.checkpoint_path
-    # output_dir = args.output_dir
 
     device = "cuda"
 
@@ -78,9 +76,9 @@ def calcualte_condition(args) -> None:
         segment_samples=segment_samples,
     )
     
-    pickle_path = os.path.join("./query_conditions", "config={}".format(Path(config_yaml).stem), "{}.pkl".format(Path(queries_dir).stem))
+    pickle_path = Path("./query_conditions", "config={}".format(Path(config_yaml).stem), "{}.pkl".format(Path(queries_dir).stem))
     
-    os.makedirs(os.path.dirname(pickle_path), exist_ok=True)
+    pickle_path.parent.mkdir(parents=True, exist_ok=True)
 
     pickle.dump(query_condition, open(pickle_path, 'wb'))
     print("Write query condition to {}".format(pickle_path))
@@ -88,15 +86,109 @@ def calcualte_condition(args) -> None:
     from IPython import embed; embed(using=False); os._exit(0)
 
 
+def evaluate(args):
+    r"""Do separation for active sound classes."""
+
+    # Arguments & parameters
+    query_emb_path = args.query_emb_path
+    config_yaml = args.config_yaml
+    checkpoint_path = args.checkpoint_path
+    # output_dir = args.output_dir
+
+    # non_sil_threshold = 1e-6
+    device = "cuda"
+    # ontology_path = get_path(csv_paths_dict["ontology.csv"])
+
+    configs = parse_yaml(config_yaml)
+    sample_rate = configs["data"]["sample_rate"]
+    segment_seconds = configs["data"]["segment_seconds"]
+    segment_samples = int(sample_rate * segment_seconds)
+
+    # Create directory
+    # if not output_dir:
+    #     output_dir = os.path.join(
+    #         "separated_results",
+    #         Path(audio_path).stem)
+
+    # Load pretrained universal source separation model
+    pl_model = load_ss_model(
+        configs=configs,
+        checkpoint_path=checkpoint_path,
+    ).to(device)
+
+    # Load audio
+    # audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
+
+    # Load pretrained audio tagging model
+    # at_model_type = "Cnn14"
+        
+    query_condition = pickle.load(open(query_emb_path, 'rb'))
+
+    mixtures_dir = "./_tmp_wav/mixture"
+    targets_dir = Path("./_tmp_wav", Path(query_emb_path).stem)
+
+    audio_paths = sorted(list(Path(mixtures_dir).glob("*.wav")))
+
+    all_median_sdrs = []
+
+    for audio_path in audio_paths:
+
+        audio, _ = librosa.load(path=audio_path, sr=sample_rate, mono=True)
+
+        target_path = Path(targets_dir, Path(audio_path.name))
+        target, _ = librosa.load(path=audio_path, sr=sample_rate, mono=True)
+
+        output_path = Path("_tmp_sep", Path(config_yaml).stem, Path(query_emb_path).stem, Path(audio_path).name)
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        sep_audio = separate_by_query_condition(
+            audio=audio, 
+            segment_samples=segment_samples, 
+            sample_rate=sample_rate,
+            query_condition=query_condition,
+            pl_model=pl_model,
+            output_path=output_path,
+        )
+
+        sdrs, _, _, _ = museval.evaluate(target[None, :, None], sep_audio[None, :, None], win=sample_rate, hop=sample_rate)  # (nsrc, nsampl, nchan)
+
+        print(np.nanmedian(sdrs))
+        all_median_sdrs.append(np.nanmedian(sdrs))
+
+    print("==========")
+    print(np.median(all_median_sdrs))
+    from IPython import embed; embed(using=False); os._exit(0)
+
+
 if __name__ == '__main__':
-    
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--queries_dir", type=str, default="")
-    parser.add_argument("--query_emb_path", type=str, default="")
-    parser.add_argument("--config_yaml", type=str, default="")
-    parser.add_argument("--checkpoint_path", type=str, default="")
+    subparsers = parser.add_subparsers(dest="mode")
+
+    parser_link = subparsers.add_parser("link")
+
+    parser_a = subparsers.add_parser("calculate_emb")
+    parser_a.add_argument("--queries_dir", type=str, default="")
+    parser_a.add_argument("--query_emb_path", type=str, default="")
+    parser_a.add_argument("--config_yaml", type=str, default="")
+    parser_a.add_argument("--checkpoint_path", type=str, default="")
+
+    parser_evaluate = subparsers.add_parser("evaluate")
+    parser_evaluate.add_argument("--query_emb_path", type=str, default="")
+    parser_evaluate.add_argument("--config_yaml", type=str, default="")
+    parser_evaluate.add_argument("--checkpoint_path", type=str, default="")
 
     args = parser.parse_args()
 
-    # add(args)
-    calcualte_condition(args)
+    if args.mode == "link":
+        add(args)
+
+    elif args.mode == "calculate_emb":
+        calcualte_condition(args)
+
+    elif args.mode == "evaluate":
+        evaluate(args)
+
+    else:
+        raise NotImplementedError

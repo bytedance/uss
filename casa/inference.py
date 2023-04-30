@@ -644,9 +644,10 @@ def separate_by_query_condition(
 
     sep_audio = sep_segments.flatten()[0: audio_samples]
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    soundfile.write(file=output_path, data=sep_audio, samplerate=sample_rate)
-    print("Write out separated file to {}".format(output_path))
+    if output_path:
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        soundfile.write(file=output_path, data=sep_audio, samplerate=sample_rate)
+        print("Write out separated file to {}".format(output_path))
 
     return sep_audio
 

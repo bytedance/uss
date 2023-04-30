@@ -50,3 +50,8 @@ CUDA_VISIBLE_DEVICES=3 python3 casa/evaluate_musdb18.py \
     --queries_dir="resources/queries/drums" \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml" \
     --checkpoint_path="./workspaces/casa/checkpoints/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/step=500000.ckpt"
+
+CUDA_VISIBLE_DEVICES=3 python3 casa/evaluate_musdb18.py evaluate \
+    --query_emb_path="query_conditions/config=ss_model=resunet30,querynet=emb,data=full/drums.pkl" \
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=emb,data=full.yaml" \
+    --checkpoint_path="./workspaces/casa/checkpoints/train/config=ss_model=resunet30,querynet=emb,gpus=1,devices=1/step=300000.ckpt"
