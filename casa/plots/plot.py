@@ -2,6 +2,7 @@ import numpy as np
 import os
 import pickle
 import pathlib
+import matplotlib.pyplot as plt
 
 from casa.config import IX_TO_LB
 
@@ -37,7 +38,9 @@ def add2():
 
     # stat_path = "./workspaces/casa/statistics/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/statistics.pkl"
 
-    stat_path = "/home/tiger/test9/statistics.pkl"
+    # stat_path = "/home/tiger/test9/statistics.pkl"
+
+    stat_path = "/home/tiger/workspaces/casa/statistics/train/ss_model=resunet30,querynet=at_soft,data=full,devices=8/statistics.pkl"
 
     stats_dict = pickle.load(open(stat_path, 'rb'))
 
@@ -47,6 +50,9 @@ def add2():
         sdri = np.nanmean(list(stats["sdri_dict"].values()))
         sdris.append(sdri)
         # sdri = np.mean(list(stats.values()))
+
+    plt.plot(sdris)
+    plt.savefig('_zz.pdf')
 
     print(sdris)
 

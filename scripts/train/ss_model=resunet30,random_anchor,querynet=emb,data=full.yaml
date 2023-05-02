@@ -2,9 +2,9 @@
 task_name: audioset
 
 data:
-    indexes_dict: "hdf5s/indexes/balanced_train.h5"
+    indexes_dict: "hdf5s/indexes/full_train.h5"
     sampler_type: balanced_sampler
-    anchor_segment_detect_mode: max_area  # "max_area" | "random"
+    anchor_segment_detect_mode: random  # "max_area" | "random"
     sample_rate: 32000
     frames_per_second: 100
     segment_seconds: 2.0
@@ -22,8 +22,8 @@ query_net:
     base_checkpoint_type: "Cnn14"
     freeze_base: True
     freeze_adaptor: False
-    bottleneck_type: at_soft  # "embedding" | "at_soft"
-    outputs_num: 527
+    bottleneck_type: embedding  # "embedding" | "at_soft"
+    outputs_num: 2048
 
 ss_model:
     model_type: ResUNet30

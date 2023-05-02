@@ -36,14 +36,14 @@ python3 casa/plot.py
 CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
-    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml" \
-    --checkpoint_path="./workspaces/casa/checkpoints/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/step=500000.ckpt"
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
+    --checkpoint_path="/home/tiger/workspaces/casa/checkpoints/train/ss_model=resunet30,querynet=at_soft,data=full,devices=8/step=1000000.ckpt"
 
 CUDA_VISIBLE_DEVICES=3 python3 casa/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
-    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml" \
-    --checkpoint_path="./workspaces/casa/checkpoints/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/step=500000.ckpt"
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
+    --checkpoint_path="/home/tiger/workspaces/casa/checkpoints/train/ss_model=resunet30,querynet=at_soft,data=full,devices=8/step=1000000.ckpt"
 
 ### evaluate on musdb18
 CUDA_VISIBLE_DEVICES=3 python3 casa/evaluate_musdb18.py calculate_condition \
