@@ -816,13 +816,9 @@ def main():
 
 
 if __name__ == "__main__":
-    # from IPython import embed; embed(using=False); os._exit(0)
-    # import sys
-    # main()
-    # pass
-
+    
     parser = argparse.ArgumentParser()
-    parser.add_argument("--audio_path", type=str)
+    parser.add_argument("--audio_path", type=str, required=True)
     parser.add_argument("--levels", nargs="*", type=int, default=[])
     parser.add_argument("--class_ids", nargs="*", type=int, default=[])
     parser.add_argument("--queries_dir", type=str, default="")

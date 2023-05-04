@@ -37,7 +37,7 @@ model_paths_dict = {
 def main():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--audio_path", type=str)
+    parser.add_argument("-i", "--audio_path", type=str, required=True)
     parser.add_argument("-c", "--condition_type", type=str, default="at_soft", choices=["at_soft", "embedding"])
     parser.add_argument("--levels", nargs="*", type=int, default=[])
     parser.add_argument("--class_ids", nargs="*", type=int, default=[])

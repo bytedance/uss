@@ -1,31 +1,51 @@
 # Computation Auditory Scene Analysis (CASA) and Universal Source Separation with Weakly labelled Data
 
-This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The CASA system is able to separate up to hundreds of sound classes using a single model. 
+This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The CASA system is able to automatically detect and separate up to hundreds of sound classes using a single model. 
 
-## Installation and Usage
+## 1. Installation
 ```bash
 pip install casa
 ```
 
+## 2. Usage
+
+### Download test audio (optional)
 ```bash
-casa -i harry_potter.flac
+wget -O "harry_potter.flac" "https://sandbox.zenodo.org/record/1196560/files/harry_potter.flac?download=1"
+```
+
+### Default: automatic detect and separate
+```bash
+casa -i "harry_potter.flac"
+```
+
+### Separate with different AudioSet hierarchy levels (The same as default)
+```bash
+casa -i "harry_potter.flac" --levels 1 2 3
+```
+
+### Separate by class IDs
+```bash
+casa -i "harry_potter.flac" --class_ids 0 1 2 3 4
+```
+
+### Separate by queries
+
+Download query audios (optional)
+```bash
+wget -O "queries.zip" "https://sandbox.zenodo.org/record/1196562/files/queries.zip?download=1"
+unzip queries.zip
 ```
 
 ```bash
-casa -i harry_potter.flac --levels 1 2 3
+casa -i "harry_potter.flac" --queries_dir "queries/speech"
 ```
 
-```bash
-casa -i harry_potter.flac --class_ids 0 1 2 3 4
-```
+## 3. Inference by cloning the repo
 
-```bash
-casa -i harry_potter.flac --queries_dir "queries/speech"
-```
+Developers could also git clone this repo and run the inference in the repo. This will let users to have more flexibility to modify the inference code.
 
-## Train the system from scratch
-
-1. Prepare running experiment.
+### Set up environment
 
 ```bash
 conda create -n casa python=3.8
@@ -33,20 +53,19 @@ conda activate casa
 pip install -r requirements.txt
 ```
 
-## Inference
+### Inference
 
+```python
+CUDA_VISIBLE_DEVICES=0 python3 casa/inference.py \
+    --audio_path=./resources/harry_potter.flac \
+    --levels 1 2 3 \
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
+    --checkpoint_path=""
+```
 
 ## Train from Scratch
 
-0. Download PANNs checkpoints
-
-
-
-```bash
-./scripts/0_download_checkpoints.sh
-```
-
-## Download dataset from ...
+## Download dataset. 
 
 The [scripts/1_download_dataset.sh](scripts/1_download_dataset.sh) script is used for downloading all audio and metadata from the internet. The total size of AudioSet is around 1.1 TB. Notice there can be missing files on YouTube, so the numebr of files downloaded by users can be different from time to time. Our downloaded version contains 20550 / 22160 of the balaned training subset, 1913637 / 2041789 of the unbalanced training subset, and 18887 / 20371 of the evaluation subset. 
 
@@ -98,3 +117,8 @@ workspace
               └── unbalanced_train_part40.h5
 </pre>
 
+```bash
+./scripts/train.sh
+```
+
+## Reference
