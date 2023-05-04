@@ -31,21 +31,6 @@ panns_paths_dict = {
     },
 }
 
-model_paths_dict = {
-    "at_soft": {
-        "config_yaml": {
-            "path": Path(Path.home(), ".cache/casa/scripts/ss_model=resunet30,querynet=at_soft,data=full.yaml"),
-            "remote_path": "https://sandbox.zenodo.org/record/1187598/files/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull.yaml?download=1",
-            "size": 1558,
-        },
-        "checkpoint": {
-            "path": Path(Path.home(), ".cache/casa/checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=100000.ckpt"),
-            "remote_path": "https://sandbox.zenodo.org/record/1186898/files/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D100000.ckpt?download=1",
-            "size": 1121024828,
-        },
-    }
-}
-
 
 SAMPLE_RATE = 32000
 CLIP_SECONDS = 10.

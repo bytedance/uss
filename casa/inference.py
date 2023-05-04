@@ -13,7 +13,7 @@ import soundfile
 import torch
 import torch.nn as nn
 
-from casa.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, csv_paths_dict, panns_paths_dict, model_paths_dict
+from casa.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, csv_paths_dict, panns_paths_dict
 from casa.models.pl_modules import LitSeparation, get_model_class
 from casa.models.query_nets import initialize_query_net
 from casa.parse_ontology import Node, get_ontology_tree
@@ -218,10 +218,12 @@ def separate_by_hierarchy(
             # Write out separated audio
             label = audioset632_id_to_lb[class_id]
 
-            if label in LB_TO_IX.keys():
-                output_name = "{}_{}.wav".format(LB_TO_IX[label], label)
-            else:
-                output_name = "{}.wav".format(label)
+            output_name = "{}.wav".format(label)
+            
+            # if label in LB_TO_IX.keys():
+            #     output_name = "classid={}_{}.wav".format(LB_TO_IX[label], label)
+            # else:
+            #     output_name = "classid=unknown_{}.wav".format(label)
 
             output_path = os.path.join(
                 output_dir,
@@ -792,12 +794,11 @@ def write_audio(
 
 
 def main():
-    # from IPython import embed; embed(using=False); os._exit(0)
-
+    
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--audio_path", type=str)
-    parser.add_argument("--condition_type", type=str, default="at_soft")
+    parser.add_argument("--config_yaml", type=str)
     parser.add_argument("--levels", nargs="*", type=int, default=[])
     parser.add_argument("--class_ids", nargs="*", type=int, default=[])
     parser.add_argument("--queries_dir", type=str, default="")
@@ -806,10 +807,10 @@ def main():
 
     args = parser.parse_args()
 
-    condition_type = args.condition_type
+    # condition_type = args.condition_type
 
-    args.config_yaml = get_path(meta=model_paths_dict[condition_type]["config_yaml"])
-    args.checkpoint_path = get_path(meta=model_paths_dict[condition_type]["checkpoint"])
+    # args.config_yaml = get_path(meta=model_paths_dict[condition_type]["config_yaml"])
+    # args.checkpoint_path = get_path(meta=model_paths_dict[condition_type]["checkpoint"])
 
     separate(args)
 

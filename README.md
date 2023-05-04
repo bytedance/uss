@@ -1,5 +1,29 @@
 # Computation Auditory Scene Analysis (CASA) and Universal Source Separation with Weakly labelled Data
 
+This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The CASA system is able to separate up to hundreds of sound classes using a single model. 
+
+## Installation and Usage
+```bash
+pip install casa
+```
+
+```bash
+casa -i harry_potter.flac
+```
+
+```bash
+casa -i harry_potter.flac --levels 1 2 3
+```
+
+```bash
+casa -i harry_potter.flac --class_ids 0 1 2 3 4
+```
+
+```bash
+casa -i harry_potter.flac --queries_dir "queries/speech"
+```
+
+## Train the system from scratch
 
 1. Prepare running experiment.
 
