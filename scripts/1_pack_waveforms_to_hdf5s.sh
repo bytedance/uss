@@ -1,6 +1,6 @@
 #!/bin/bash
 DATASET_DIR=${1:-"./datasets/audioset"}   # Default first argument.
-WORKSPACE=${2:-"./workspaces/casa"}   # Default second argument.
+WORKSPACE=${2:-"./workspaces/uss"}   # Default second argument.
 
 # Pack evaluation waveforms to a single hdf5 file
 python3 panns/dataset.py pack_waveforms_to_hdf5 \

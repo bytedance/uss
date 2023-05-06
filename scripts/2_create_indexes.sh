@@ -1,5 +1,5 @@
 #!/bin/bash
-WORKSPACE=${1:-"./workspaces/casa"}    # Default workspace directory
+WORKSPACE=${1:-"./workspaces/uss"}    # Default workspace directory
 
 # Create balanced eval indexes.
 python3 panns/create_indexes.py create_indexes \

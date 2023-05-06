@@ -9,7 +9,7 @@ import logging
 import h5py
 import librosa
 
-from casa.config import CLASSES_NUM
+from uss.config import CLASSES_NUM
 
 
 def get_sub_filepaths(folder):

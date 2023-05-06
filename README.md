@@ -11,7 +11,7 @@ pip install uss
 
 ### 2.1 Download test audio (optional)
 ```bash
-wget -O "harry_potter.flac" "https://sandbox.zenodo.org/record/1196560/files/harry_potter.flac?download=1"
+wget -O "harry_potter.flac" "https://sandbox.zenodo.org/record/1196562/files/harry_potter.flac?download=1"
 ```
 
 ### 2.2 Default: automatic detect and separate
@@ -177,6 +177,15 @@ Train the universal source separation system.
 
 ```bash
 ./scripts/4_train.sh
+```
+
+Or simply execute:
+
+```bash
+WORKSPACE="workspaces/uss"
+CUDA_VISIBLE_DEVICES=0 python3 uss/train.py \
+    --workspace=$WORKSPACE \
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=balanced.yaml"
 ```
 
 ## Reference
