@@ -8,19 +8,20 @@ import lightning.pytorch as pl
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from casa.callbacks.base import CheckpointEveryNSteps
-from casa.callbacks.evaluate import EvaluateCallback
-from casa.config import CLIP_SECONDS, FRAMES_PER_SECOND, panns_paths_dict
-from casa.data.anchor_segment_detectors import AnchorSegmentDetector
-from casa.data.anchor_segment_mixers import AnchorSegmentMixer
-from casa.data.datamodules import DataModule
-from casa.data.datasets import Dataset
-from casa.data.samplers import BalancedSampler
-from casa.losses import get_loss_function
-from casa.models.pl_modules import LitSeparation, get_model_class
-from casa.models.query_nets import initialize_query_net
-from casa.optimizers.lr_schedulers import get_lr_lambda
-from casa.utils import create_logging, load_pretrained_panns, parse_yaml, get_path
+from IPython import embed; embed(using=False); os._exit(0)
+from uss.callbacks.base import CheckpointEveryNSteps
+from uss.callbacks.evaluate import EvaluateCallback
+from uss.config import CLIP_SECONDS, FRAMES_PER_SECOND, panns_paths_dict
+from uss.data.anchor_segment_detectors import AnchorSegmentDetector
+from uss.data.anchor_segment_mixers import AnchorSegmentMixer
+from uss.data.datamodules import DataModule
+from uss.data.datasets import Dataset
+from uss.data.samplers import BalancedSampler
+from uss.losses import get_loss_function
+from uss.models.pl_modules import LitSeparation, get_model_class
+from uss.models.query_nets import initialize_query_net
+from uss.optimizers.lr_schedulers import get_lr_lambda
+from uss.utils import create_logging, load_pretrained_panns, parse_yaml, get_path
 
 
 def train(args) -> None:

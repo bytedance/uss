@@ -2,7 +2,7 @@ import h5py
 import numpy as np
 from typing import Dict
 
-from casa.utils import int16_to_float32
+from uss.utils import int16_to_float32
 
 
 class Dataset:

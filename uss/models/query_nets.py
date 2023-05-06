@@ -3,9 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from casa.utils import load_pretrained_panns, get_path
-from casa.models.base import init_layer
-from casa.config import panns_paths_dict
+from uss.utils import load_pretrained_panns, get_path
+from uss.models.base import init_layer
+from uss.config import panns_paths_dict
 
 
 def initialize_query_net(configs):

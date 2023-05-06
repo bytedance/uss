@@ -4,7 +4,7 @@ import pickle
 import pathlib
 import matplotlib.pyplot as plt
 
-from casa.config import IX_TO_LB
+from uss.config import IX_TO_LB
 
 
 def add():
@@ -34,13 +34,13 @@ def add():
 
 def add2():
 
-    # stat_path = "./workspaces/casa/statistics/train/config=ss_model=resunet30,querynet=at_soft_adapt,gpus=1,devices=1/statistics.pkl"
+    # stat_path = "./workspaces/uss/statistics/train/config=ss_model=resunet30,querynet=at_soft_adapt,gpus=1,devices=1/statistics.pkl"
 
-    # stat_path = "./workspaces/casa/statistics/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/statistics.pkl"
+    # stat_path = "./workspaces/uss/statistics/train/config=ss_model=resunet30,querynet=at_soft,gpus=1,devices=1/statistics.pkl"
 
     # stat_path = "/home/tiger/test9/statistics.pkl"
 
-    stat_path = "/home/tiger/workspaces/casa/statistics/train/ss_model=resunet30,querynet=at_soft,data=full,devices=8/statistics.pkl"
+    stat_path = "/home/tiger/workspaces/uss/statistics/train/ss_model=resunet30,querynet=at_soft,data=full,devices=8/statistics.pkl"
 
     stats_dict = pickle.load(open(stat_path, 'rb'))
 

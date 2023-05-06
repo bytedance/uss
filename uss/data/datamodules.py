@@ -7,7 +7,7 @@ import torch
 import lightning.pytorch as pl
 from torch.utils.data import DataLoader
 
-from casa.data.samplers import DistributedSamplerWrapper
+from uss.data.samplers import DistributedSamplerWrapper
 
 
 class DataModule(pl.LightningDataModule):
@@ -69,7 +69,7 @@ class DataModule(pl.LightningDataModule):
         return train_loader
 
     def val_dataloader(self):
-        r"""We use `casa.callbacks.evaluate` to evaluate on the train / test 
+        r"""We use `uss.callbacks.evaluate` to evaluate on the train / test 
         dataset"""
         pass
 

@@ -150,7 +150,7 @@ def get_model_class(model_type: str) -> nn.Module:
     r"""Get separation module by model_type."""
 
     if model_type == 'ResUNet30':
-        from casa.models.resunet import ResUNet30
+        from uss.models.resunet import ResUNet30
         return ResUNet30
 
     else:

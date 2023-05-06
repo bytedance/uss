@@ -1,10 +1,10 @@
-# Computation Auditory Scene Analysis (CASA) and Universal Source Separation with Weakly labelled Data
+# Universal Source Separation (USS) with Weakly labelled Data
 
-This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The CASA system is able to automatically detect and separate up to hundreds of sound classes using a single model. The CASA system is trained on the weakly labelled AudioSet dataset.
+This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The USS system can automatically detect and separate sound classes from a real recording. The USS system can separate up to hundreds of sound classes sound classes in a hierarchical ontology structure. The USS system is trained on the weakly labelled AudioSet dataset only.
 
 ## 1. Installation
 ```bash
-pip install casa
+pip install uss
 ```
 
 ## 2. Usage
@@ -16,17 +16,17 @@ wget -O "harry_potter.flac" "https://sandbox.zenodo.org/record/1196560/files/har
 
 2.2 Default: automatic detect and separate
 ```bash
-casa -i "harry_potter.flac"
+uss -i "harry_potter.flac"
 ```
 
 2.3 Separate with different AudioSet hierarchy levels (The same as default)
 ```bash
-casa -i "harry_potter.flac" --levels 1 2 3
+uss -i "harry_potter.flac" --levels 1 2 3
 ```
 
 2.4 Separate by class IDs
 ```bash
-casa -i "harry_potter.flac" --class_ids 0 1 2 3 4
+uss -i "harry_potter.flac" --class_ids 0 1 2 3 4
 ```
 
 2.5 Separate by queries
@@ -41,7 +41,7 @@ unzip queries.zip
 Do separation 
 
 ```bash
-casa -i "harry_potter.flac" --queries_dir "queries/speech"
+uss -i "harry_potter.flac" --queries_dir "queries/speech"
 ```
 
 ## 3. Git Clone the Repo and do Inference
@@ -51,26 +51,26 @@ Users could also git clone this repo and run the inference in the repo. This wil
 ### Set up environment
 
 ```bash
-conda create -n casa python=3.8
-conda activate casa
+conda create -n uss python=3.8
+conda activate uss
 pip install -r requirements.txt
 ```
 
 ### Inference
 
 ```python
-CUDA_VISIBLE_DEVICES=0 python3 casa/inference.py \
+CUDA_VISIBLE_DEVICES=0 python3 uss/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
     --checkpoint_path=""
 ```
 
-## 4. Train the CASA system from scratch
+## 4. Train the USS system from scratch
 
 4.0 Download dataset. 
 
-Download the AudioSet dataset from the internet. The total size of AudioSet is around 1.1 TB. For reproducibility, our downloaded dataset can be accessed at: link: [https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg](https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg), password: 0vc2. Users may only download the balanced set (10.36 Gb) to train a baseline system.
+Download the AudioSet dataset from the internet. The total size of AudioSet is around 1.1 TB. For reproducibility, our downloaded dataset can be accessed at: link: [https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg](https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg), password: 0vc2. Users may only download the balanced set (10.36 Gb, 1% of the full set) to train a baseline system.
 
 The downloaded data looks like:
 
@@ -109,15 +109,8 @@ Audio files in a subdirectory will be packed into an hdf5 file. There will be 1 
 The packed hdf5 files looks like:
 
 <pre>
-workspace
+workspaces/uss
 └── hdf5s
-     ├── targets (2.3 GB)
-     |    ├── balanced_train.h5
-     |    ├── eval.h5
-     |    └── unbalanced_train
-     |        ├── unbalanced_train_part00.h5
-     |        ...
-     |        └── unbalanced_train_part40.h5
      └── waveforms (1.1 TB)
           ├── balanced_train.h5
           ├── eval.h5
@@ -135,6 +128,20 @@ Pack indexes into hdf5 files for balanced training.
 ./scripts/2_create_indexes.sh
 ```
 
+The packed indexes files look like:
+
+<pre>
+workspaces/uss
+└── hdf5s
+     └── indexes (3.0 GB)
+          ├── balanced_train.h5
+          ├── eval.h5
+          └── unbalanced_train
+              ├── unbalanced_train_part00.h5
+              ...
+              └── unbalanced_train_part40.h5
+</pre>
+
 4.3 Create evaluation data
 
 Create 100 2-second mixture and source pairs to evaluate the separation result of each sound class. There are in total 52,700 2-second pairs for 527 sound classes.
@@ -142,6 +149,27 @@ Create 100 2-second mixture and source pairs to evaluate the separation result o
 ```bash
 ./scripts/3_create_evaluation_data.sh
 ```
+
+The evaluation data look like:
+<pre>
+workspaces/uss
+└── evaluation
+     └── audioset
+          ├── 2s_segments_balanced_train.csv
+          ├── 2s_segments_test.csv
+          ├── 2s_segments_balanced_train
+          │   ├── class_id=0
+          │   │   └── ... (100 mixture + 100 clean)
+          │   │...
+          │   └── class_id=526
+          │       └── ... (100 mixture + 100 clean)
+          └── 2s_segments_test
+              ├── class_id=0
+              │   └── ... (100 mixture + 100 clean)
+              │...
+              └── class_id=526
+                  └── ... (100 mixture + 100 clean)
+</pre>
 
 4.4 Train
 

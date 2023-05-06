@@ -2,8 +2,8 @@ import os
 import lightning.pytorch as pl
 from lightning.pytorch.utilities import rank_zero_only
 
-from casa.evaluate import AudioSetEvaluator
-from casa.utils import StatisticsContainer, get_mean_sdr_from_dict
+from uss.evaluate import AudioSetEvaluator
+from uss.utils import StatisticsContainer, get_mean_sdr_from_dict
 from torch.utils.tensorboard import SummaryWriter
 
 import numpy as np

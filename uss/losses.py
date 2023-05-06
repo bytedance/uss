@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torchlibrosa.stft import STFT
 
-from casa.models.base import Base
+from uss.models.base import Base
 
 
 def l1(output: torch. Tensor, target: torch.Tensor) -> torch.float:

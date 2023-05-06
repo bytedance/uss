@@ -14,19 +14,19 @@ import torch
 import torch.nn as nn
 from pathlib import Path
 
-from casa.inference import separate
-from casa.utils import get_path
+from uss.inference import separate
+from uss.utils import get_path
 
 
 model_paths_dict = {
     "at_soft": {
         "config_yaml": {
-            "path": Path(Path.home(), ".cache/casa/scripts/ss_model=resunet30,querynet=at_soft,data=full.yaml"),
+            "path": Path(Path.home(), ".cache/uss/scripts/ss_model=resunet30,querynet=at_soft,data=full.yaml"),
             "remote_path": "https://sandbox.zenodo.org/record/1187598/files/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull.yaml?download=1",
             "size": 1558,
         },
         "checkpoint": {
-            "path": Path(Path.home(), ".cache/casa/checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=100000.ckpt"),
+            "path": Path(Path.home(), ".cache/uss/checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=100000.ckpt"),
             "remote_path": "https://sandbox.zenodo.org/record/1186898/files/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D100000.ckpt?download=1",
             "size": 1121024828,
         },

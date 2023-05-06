@@ -184,7 +184,7 @@ def _debug_plot_anchor_segment(
     import os
     import soundfile
     import matplotlib.pyplot as plt
-    from casa.config import IX_TO_LB
+    from uss.config import IX_TO_LB
     sample_rate = 32000
 
     n = 0

@@ -13,11 +13,11 @@ import soundfile
 import torch
 import torch.nn as nn
 
-from casa.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, csv_paths_dict, panns_paths_dict
-from casa.models.pl_modules import LitSeparation, get_model_class
-from casa.models.query_nets import initialize_query_net
-from casa.parse_ontology import Node, get_ontology_tree
-from casa.utils import (get_audioset632_id_to_lb, load_pretrained_panns,
+from uss.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, csv_paths_dict, panns_paths_dict
+from uss.models.pl_modules import LitSeparation, get_model_class
+from uss.models.query_nets import initialize_query_net
+from uss.parse_ontology import Node, get_ontology_tree
+from uss.utils import (get_audioset632_id_to_lb, load_pretrained_panns,
                         parse_yaml, remove_silence, repeat_to_length, get_path)
 
 
@@ -54,6 +54,7 @@ def separate(args) -> None:
         configs=configs,
         checkpoint_path=checkpoint_path,
     ).to(device)
+    from IPython import embed; embed(using=False); os._exit(0)
 
     # Load audio
     audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)

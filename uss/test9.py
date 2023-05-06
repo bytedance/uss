@@ -3,14 +3,14 @@
 # import librosa
 # import time
 
-# from casa.utils import calculate_sdr
-# from casa.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, 
+# from uss.utils import calculate_sdr
+# from uss.utils import create_logging, read_yaml, load_pretrained_model #, load_pretrained_sed_model, 
 
-# from casa.data.anchor_segment_detectors import AnchorSegmentDetector
-# from casa.data.anchor_segment_mixers import AnchorSegmentMixer
-# from casa.data.query_condition_extractors import QueryConditionExtractor
-# from casa.models.pl_modules import LitSeparation
-# from casa.models.resunet import *
+# from uss.data.anchor_segment_detectors import AnchorSegmentDetector
+# from uss.data.anchor_segment_mixers import AnchorSegmentMixer
+# from uss.data.query_condition_extractors import QueryConditionExtractor
+# from uss.models.pl_modules import LitSeparation
+# from uss.models.resunet import *
 
 # from torch.utils.tensorboard import SummaryWriter
 import torch
@@ -155,7 +155,7 @@ def add2():
         lr_lambda=None,
     ).to(device)
 
-    audios_dir = "/home/tiger/workspaces/casa/evaluation/audioset/mixtures_sources_test"
+    audios_dir = "/home/tiger/workspaces/uss/evaluation/audioset/mixtures_sources_test"
 
     evaluator = AudiosetEvaluator(pl_model=pl_model, audios_dir=audios_dir, classes_num=classes_num, max_eval_per_class=5)
 
@@ -175,7 +175,7 @@ def add3():
 def add4(): 
     from tensorboard.backend.event_processing import event_accumulator
 
-    ea = event_accumulator.EventAccumulator('/home/tiger/my_code_2019.12-/python/audioset_source_separation/workspaces/casa/tf_logs/train/config=01a,devices=1/events.out.tfevents.1681729002.n130-020-141.1680684.0')
+    ea = event_accumulator.EventAccumulator('/home/tiger/my_code_2019.12-/python/audioset_source_separation/workspaces/uss/tf_logs/train/config=01a,devices=1/events.out.tfevents.1681729002.n130-020-141.1680684.0')
 
     ea.Reload()
     tags = ea.Tags()

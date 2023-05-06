@@ -9,13 +9,13 @@ from torch.utils.data import DataLoader
 import torch
 from panns_inference.models import Cnn14, Cnn14_DecisionLevelMax
 
-from casa.data.datasets import Dataset
-from casa.data.samplers import BalancedSampler
-from casa.data.datamodules import collate_fn
-from casa.utils import load_pretrained_model
-from casa.data.anchor_segment_detectors import AnchorSegmentDetector
-from casa.data.anchor_segment_mixers import AnchorSegmentMixer
-from casa.config import SAMPLE_RATE, FRAMES_PER_SEC, CLASSES_NUM
+from uss.data.datasets import Dataset
+from uss.data.samplers import BalancedSampler
+from uss.data.datamodules import collate_fn
+from uss.utils import load_pretrained_model
+from uss.data.anchor_segment_detectors import AnchorSegmentDetector
+from uss.data.anchor_segment_mixers import AnchorSegmentMixer
+from uss.config import SAMPLE_RATE, FRAMES_PER_SEC, CLASSES_NUM
 
 
 def create_evaluation_meta(args):

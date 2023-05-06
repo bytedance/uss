@@ -6,8 +6,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchlibrosa.stft import STFT, ISTFT, magphase
 
-from casa.models.base import Base, init_layer, init_bn, act
-from casa.models.film import get_film_meta, FiLM
+from uss.models.base import Base, init_layer, init_bn, act
+from uss.models.film import get_film_meta, FiLM
 
     
 class ConvBlockRes(nn.Module):

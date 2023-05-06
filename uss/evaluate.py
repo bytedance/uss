@@ -9,9 +9,9 @@ import lightning.pytorch as pl
 import numpy as np
 import torch
 
-from casa.config import IX_TO_LB
-from casa.inference import load_ss_model
-from casa.utils import create_logging, calculate_sdr, parse_yaml, get_mean_sdr_from_dict
+from uss.config import IX_TO_LB
+from uss.inference import load_ss_model
+from uss.utils import create_logging, calculate_sdr, parse_yaml, get_mean_sdr_from_dict
 
 
 class AudioSetEvaluator:
@@ -202,5 +202,5 @@ if __name__ == "__main__":
 
     test_evaluate(
         config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,gpus=1.yaml",
-        workspace="./workspaces/casa",
+        workspace="./workspaces/uss",
     )
