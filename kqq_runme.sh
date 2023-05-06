@@ -57,4 +57,12 @@ CUDA_VISIBLE_DEVICES=3 python3 uss/evaluate_musdb18.py evaluate \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
     --checkpoint_path="/home/tiger/workspaces/uss/checkpoints/train/ss_model=resunet30,querynet=at_soft,data=full,devices=8/step=1000000.ckpt"
 
-git merge tpami --no-ff --no-commit to_haohe.sh kqq_runme.sh scripts/old scripts/train/old scripts/train uss/test9.py
+#------------
+rm kqq_runme.sh
+rm to_haohe.sh
+rm uss/test9.py
+rm uss/evaluate_musdb18.py
+rm -r uss/plot
+rm -r scripts/old
+rm -r scripts/train/old
+rm -r scripts/train/kqq_local
