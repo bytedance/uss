@@ -2,12 +2,11 @@ from typing import Dict
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class AnchorSegmentMixer(nn.Module):
     def __init__(
-        self, 
+        self,
         mix_num: int,
         match_energy: bool,
     ) -> None:
@@ -15,7 +14,7 @@ class AnchorSegmentMixer(nn.Module):
 
         Args:
             mix_num (int): the number of sources to mix
-            match_energy (bool): set to `True` to rescale segments to have the 
+            match_energy (bool): set to `True` to rescale segments to have the
                 same energy before mixing
 
         Returns:
@@ -53,10 +52,11 @@ class AnchorSegmentMixer(nn.Module):
                 next_segment = waveforms[(n + i) % batch_size].clone()
 
                 if self.match_energy:
-                    # Rescale the energy of the next_segment to match the energy of 
+                    # Rescale the energy of the next_segment to match the energy of
                     # the segment
-                    next_segment = rescale_to_match_energy(segment, next_segment)
-                
+                    next_segment = rescale_to_match_energy(
+                        segment, next_segment)
+
                 mixture += next_segment
 
             targets.append(segment)
@@ -64,12 +64,12 @@ class AnchorSegmentMixer(nn.Module):
 
         targets = torch.stack(targets, dim=0)
         mixtures = torch.stack(mixtures, dim=0)
-        
+
         return mixtures, targets
 
 
 def rescale_to_match_energy(
-    segment1: torch.Tensor, 
+    segment1: torch.Tensor,
     segment2: torch.Tensor,
 ) -> torch.Tensor:
     r"""Rescale segment2 to match the energy of segment1.
@@ -91,8 +91,8 @@ def get_energy(x: torch.Tensor) -> torch.float:
 
 
 def get_energy_ratio(
-    segment1: torch.Tensor, 
-    segment2: torch.Tensor, 
+    segment1: torch.Tensor,
+    segment2: torch.Tensor,
     eps=1e-10
 ) -> float:
     r"""Calculate ratio = sqrt(E(s1) / E(s2))."""

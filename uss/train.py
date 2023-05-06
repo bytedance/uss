@@ -20,7 +20,8 @@ from uss.losses import get_loss_function
 from uss.models.pl_modules import LitSeparation, get_model_class
 from uss.models.query_nets import initialize_query_net
 from uss.optimizers.lr_schedulers import get_lr_lambda
-from uss.utils import create_logging, load_pretrained_panns, parse_yaml, get_path
+from uss.utils import (create_logging, get_path, load_pretrained_panns,
+                       parse_yaml)
 
 
 def train(args) -> None:
@@ -47,8 +48,6 @@ def train(args) -> None:
 
     # Configurations of pretrained sound event detection model from PANNs
     sed_model_type = configs["sound_event_detection"]["model_type"]
-    # sed_checkpoint_path = configs["sound_event_detection"]["checkpoint_path"]
-    sed_freeze = configs["sound_event_detection"]["freeze"]
 
     # Configuration of data to train the universal source separation system
     clip_seconds = CLIP_SECONDS
@@ -100,12 +99,6 @@ def train(args) -> None:
         devices_num=devices_num,
     )
 
-    # Load pretrained sound event detection model
-    # sed_model = load_pretrained_panns(
-    #     model_type=sed_model_type,
-    #     checkpoint_path=sed_checkpoint_path,
-    #     freeze=sed_freeze,
-    # )
     sed_model = load_pretrained_panns(
         model_type=sed_model_type,
         checkpoint_path=get_path(panns_paths_dict[sed_model_type]),

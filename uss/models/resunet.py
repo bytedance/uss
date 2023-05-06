@@ -1,15 +1,16 @@
-from einops import rearrange
+from typing import Dict, Tuple
+
 import numpy as np
-from typing import Dict, List, NoReturn, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torchlibrosa.stft import STFT, ISTFT, magphase
+from einops import rearrange
+from torchlibrosa.stft import ISTFT, STFT, magphase
 
-from uss.models.base import Base, init_layer, init_bn, act
-from uss.models.film import get_film_meta, FiLM
+from uss.models.base import Base, init_bn, init_layer
+from uss.models.film import FiLM, get_film_meta
 
-    
+
 class ConvBlockRes(nn.Module):
     def __init__(
         self,
@@ -75,10 +76,10 @@ class ConvBlockRes(nn.Module):
         if self.is_shortcut:
             init_layer(self.shortcut)
 
-    def forward(self, 
-        input_tensor: torch.Tensor, 
-        film_dict: Dict
-    ) -> torch.Tensor:
+    def forward(self,
+                input_tensor: torch.Tensor,
+                film_dict: Dict
+                ) -> torch.Tensor:
         r"""Forward input feature maps to the encoder block.
 
         Args:
@@ -92,7 +93,10 @@ class ConvBlockRes(nn.Module):
         b1 = film_dict['beta1']
         b2 = film_dict['beta2']
 
-        x = self.conv1(F.leaky_relu_(self.bn1(input_tensor) + b1, negative_slope=0.01))
+        x = self.conv1(
+            F.leaky_relu_(
+                self.bn1(input_tensor) + b1,
+                negative_slope=0.01))
         x = self.conv2(F.leaky_relu_(self.bn2(x) + b2, negative_slope=0.01))
 
         if self.is_shortcut:
@@ -122,10 +126,10 @@ class EncoderBlockRes1B(nn.Module):
         )
         self.downsample = downsample
 
-    def forward(self, 
-        input_tensor: torch.Tensor, 
-        film_dict: Dict
-    ) -> torch.Tensor:
+    def forward(self,
+                input_tensor: torch.Tensor,
+                film_dict: Dict
+                ) -> torch.Tensor:
         r"""Forward input feature maps to the encoder block.
 
         Args:
@@ -163,7 +167,7 @@ class DecoderBlockRes1B(nn.Module):
 
         self.bn1 = nn.BatchNorm2d(in_channels, momentum=momentum)
         self.bn2 = nn.BatchNorm2d(in_channels, momentum=momentum)
-        # Do not delate the dummy self.bn2. FiLM need self.bn2 to parse the 
+        # Do not delate the dummy self.bn2. FiLM need self.bn2 to parse the
         # FiLM meta correctly.
 
         self.conv1 = torch.nn.ConvTranspose2d(
@@ -177,13 +181,13 @@ class DecoderBlockRes1B(nn.Module):
         )
 
         self.conv_block2 = ConvBlockRes(
-            in_channels=out_channels * 2, 
-            out_channels=out_channels, 
-            kernel_size=kernel_size, 
-            momentum=momentum, 
+            in_channels=out_channels * 2,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            momentum=momentum,
             has_film=has_film,
         )
-        
+
         self.has_film = has_film
 
         self.init_weights()
@@ -194,9 +198,9 @@ class DecoderBlockRes1B(nn.Module):
         init_layer(self.conv1)
 
     def forward(
-        self, 
-        input_tensor: torch.Tensor, 
-        concat_tensor: torch.Tensor, 
+        self,
+        input_tensor: torch.Tensor,
+        concat_tensor: torch.Tensor,
         film_dict: Dict,
     ) -> torch.Tensor:
         r"""Forward input feature maps to the decoder block.
@@ -208,7 +212,7 @@ class DecoderBlockRes1B(nn.Module):
         Returns:
             output (torch.Tensor): (B, C_out, T * upsample, F * upsample)
         """
-        
+
         b1 = film_dict['beta1']
 
         x = self.conv1(F.leaky_relu_(self.bn1(input_tensor) + b1))
@@ -224,10 +228,10 @@ class DecoderBlockRes1B(nn.Module):
 
 
 class ResUNet30_Base(nn.Module, Base):
-    def __init__(self, 
-        input_channels: int, 
-        output_channels: int,
-    ) -> None:
+    def __init__(self,
+                 input_channels: int,
+                 output_channels: int,
+                 ) -> None:
         r"""Base separation model.
 
         Args:
@@ -247,8 +251,9 @@ class ResUNet30_Base(nn.Module, Base):
         self.output_channels = output_channels
 
         self.K = 3  # mag, cos, sin
-        
-        self.time_downsample_ratio = 2 ** 5  # This number equals 2^{#encoder_blcoks}
+
+        # This number equals 2^{#encoder_blcoks}
+        self.time_downsample_ratio = 2 ** 5
 
         self.stft = STFT(
             n_fft=window_size,
@@ -273,11 +278,11 @@ class ResUNet30_Base(nn.Module, Base):
         self.bn0 = nn.BatchNorm2d(window_size // 2 + 1, momentum=momentum)
 
         self.pre_conv = nn.Conv2d(
-            in_channels=input_channels, 
-            out_channels=32, 
-            kernel_size=(1, 1), 
-            stride=(1, 1), 
-            padding=(0, 0), 
+            in_channels=input_channels,
+            out_channels=32,
+            kernel_size=(1, 1),
+            stride=(1, 1),
+            padding=(0, 0),
             bias=True,
         )
 
@@ -425,12 +430,15 @@ class ResUNet30_Base(nn.Module, Base):
             waveform: (B, output_channels, audio_samples)
         """
 
-        x = rearrange(input_tensor, 'b (c k) t f -> b c k t f', c=self.output_channels)
+        x = rearrange(
+            input_tensor,
+            'b (c k) t f -> b c k t f',
+            c=self.output_channels)
 
         mask_mag = torch.sigmoid(x[:, :, 0, :, :])
         mask_real = torch.tanh(x[:, :, 1, :, :])
         mask_imag = torch.tanh(x[:, :, 2, :, :])
-        
+
         _, mask_cos, mask_sin = magphase(mask_real, mask_imag)
         # mask_cos, mask_sin: (B, output_channels, T, F)
 
@@ -468,7 +476,6 @@ class ResUNet30_Base(nn.Module, Base):
 
         return waveform
 
-
     def forward(self, mixtures, film_dict):
         r"""Forward mixtures and conditions to separate target sources.
 
@@ -488,35 +495,48 @@ class ResUNet30_Base(nn.Module, Base):
         x = x.transpose(1, 3)
         x = self.bn0(x)
         x = x.transpose(1, 3)   # shape: (B, input_channels, T, F)
-        
+
         # Pad spectrogram to be evenly divided by downsample ratio
         origin_len = x.shape[2]
-        pad_len = (
-            int(np.ceil(x.shape[2] / self.time_downsample_ratio)) * self.time_downsample_ratio
-            - origin_len
-        )
+        pad_len = (int(np.ceil(x.shape[2] /
+                               self.time_downsample_ratio)) *
+                   self.time_downsample_ratio -
+                   origin_len)
         x = F.pad(x, pad=(0, 0, 0, pad_len))
         # x: (B, input_channels, T, F)
 
         # Let frequency bins be evenly divided by 2, e.g., 513 -> 512
-        x = x[..., 0 : x.shape[-1] - 1]  # (B, input_channels, T, F)
+        x = x[..., 0: x.shape[-1] - 1]  # (B, input_channels, T, F)
 
         # UNet
         x = self.pre_conv(x)
 
-        x1_pool, x1 = self.encoder_block1(x, film_dict['encoder_block1'])  # x1_pool: (B, 32, T / 2, F / 2)
-        x2_pool, x2 = self.encoder_block2(x1_pool, film_dict['encoder_block2'])  # x2_pool: (B, 64, T / 4, F / 4)
-        x3_pool, x3 = self.encoder_block3(x2_pool, film_dict['encoder_block3'])  # x3_pool: (B, 128, T / 8, F / 8)
-        x4_pool, x4 = self.encoder_block4(x3_pool, film_dict['encoder_block4'])  # x4_pool: (B, 256, T / 16, F / 16)
-        x5_pool, x5 = self.encoder_block5(x4_pool, film_dict['encoder_block5'])  # x5_pool: (B, 384, T / 32, F / 32)
-        x6_pool, x6 = self.encoder_block6(x5_pool, film_dict['encoder_block6'])  # x6_pool: (B, 384, T / 32, F / 64)
-        x_center, _ = self.conv_block7a(x6_pool, film_dict['conv_block7a'])  # (B, 384, T / 32, F / 64)
-        x7 = self.decoder_block1(x_center, x6, film_dict['decoder_block1'])  # (B, 384, T / 32, F / 32)
-        x8 = self.decoder_block2(x7, x5, film_dict['decoder_block2'])  # (B, 384, T / 16, F / 16)
-        x9 = self.decoder_block3(x8, x4, film_dict['decoder_block3'])  # (B, 256, T / 8, F / 8)
-        x10 = self.decoder_block4(x9, x3, film_dict['decoder_block4'])  # (B, 128, T / 4, F / 4)
-        x11 = self.decoder_block5(x10, x2, film_dict['decoder_block5'])  # (B, 64, T / 2, F / 2)
-        x12 = self.decoder_block6(x11, x1, film_dict['decoder_block6'])  # (B, 32, T, F)
+        x1_pool, x1 = self.encoder_block1(
+            x, film_dict['encoder_block1'])  # x1_pool: (B, 32, T / 2, F / 2)
+        x2_pool, x2 = self.encoder_block2(
+            x1_pool, film_dict['encoder_block2'])  # x2_pool: (B, 64, T / 4, F / 4)
+        x3_pool, x3 = self.encoder_block3(
+            x2_pool, film_dict['encoder_block3'])  # x3_pool: (B, 128, T / 8, F / 8)
+        # x4_pool: (B, 256, T / 16, F / 16)
+        x4_pool, x4 = self.encoder_block4(x3_pool, film_dict['encoder_block4'])
+        # x5_pool: (B, 384, T / 32, F / 32)
+        x5_pool, x5 = self.encoder_block5(x4_pool, film_dict['encoder_block5'])
+        # x6_pool: (B, 384, T / 32, F / 64)
+        x6_pool, x6 = self.encoder_block6(x5_pool, film_dict['encoder_block6'])
+        x_center, _ = self.conv_block7a(
+            x6_pool, film_dict['conv_block7a'])  # (B, 384, T / 32, F / 64)
+        # (B, 384, T / 32, F / 32)
+        x7 = self.decoder_block1(x_center, x6, film_dict['decoder_block1'])
+        # (B, 384, T / 16, F / 16)
+        x8 = self.decoder_block2(x7, x5, film_dict['decoder_block2'])
+        x9 = self.decoder_block3(
+            x8, x4, film_dict['decoder_block3'])  # (B, 256, T / 8, F / 8)
+        x10 = self.decoder_block4(
+            x9, x3, film_dict['decoder_block4'])  # (B, 128, T / 4, F / 4)
+        x11 = self.decoder_block5(
+            x10, x2, film_dict['decoder_block5'])  # (B, 64, T / 2, F / 2)
+        x12 = self.decoder_block6(
+            x11, x1, film_dict['decoder_block6'])  # (B, 32, T, F)
 
         x = self.after_conv(x12)
 
@@ -542,11 +562,11 @@ class ResUNet30_Base(nn.Module, Base):
 
 
 class ResUNet30(nn.Module):
-    def __init__(self, 
-        input_channels: int, 
-        output_channels: int, 
-        condition_size: int,
-    ) -> None:
+    def __init__(self,
+                 input_channels: int,
+                 output_channels: int,
+                 condition_size: int,
+                 ) -> None:
         r"""Universal separation model.
 
         Args:
@@ -558,16 +578,16 @@ class ResUNet30(nn.Module):
         super(ResUNet30, self).__init__()
 
         self.base = ResUNet30_Base(
-            input_channels=input_channels, 
+            input_channels=input_channels,
             output_channels=output_channels,
         )
-        
+
         self.film_meta = get_film_meta(
             module=self.base,
         )
-        
+
         self.film = FiLM(
-            film_meta=self.film_meta, 
+            film_meta=self.film_meta,
             condition_size=condition_size
         )
 
@@ -585,7 +605,7 @@ class ResUNet30(nn.Module):
                 "waveform": (batch_size, audio_channels, audio_samples)
             }
         """
-        
+
         mixtures = input_dict['mixture']
         conditions = input_dict['condition']
 
@@ -594,7 +614,7 @@ class ResUNet30(nn.Module):
         )
 
         output_dict = self.base(
-            mixtures=mixtures, 
+            mixtures=mixtures,
             film_dict=film_dict,
         )
 

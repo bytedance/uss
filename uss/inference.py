@@ -1,10 +1,10 @@
 import argparse
 import os
-import time
 import pickle
+import time
+import warnings
 from pathlib import Path
 from typing import Dict, List
-import warnings
 
 import librosa
 import lightning.pytorch as pl
@@ -14,12 +14,14 @@ import soundfile
 import torch
 import torch.nn as nn
 
-from uss.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, csv_paths_dict, panns_paths_dict
+from uss.config import (ID_TO_IX, IX_TO_LB, LB_TO_IX, csv_paths_dict,
+                        panns_paths_dict)
 from uss.models.pl_modules import LitSeparation, get_model_class
 from uss.models.query_nets import initialize_query_net
 from uss.parse_ontology import Node, get_ontology_tree
-from uss.utils import (get_audioset632_id_to_lb, load_pretrained_panns,
-                        parse_yaml, remove_silence, repeat_to_length, get_path)
+from uss.utils import (get_audioset632_id_to_lb, get_path,
+                       load_pretrained_panns, parse_yaml, remove_silence,
+                       repeat_to_length)
 
 
 def separate(args) -> None:
@@ -55,7 +57,7 @@ def separate(args) -> None:
     # Load pretrained universal source separation model
     print("Loading model ...")
 
-    warnings.filterwarnings("ignore", category=UserWarning) 
+    warnings.filterwarnings("ignore", category=UserWarning)
 
     pl_model = load_ss_model(
         configs=configs,
@@ -75,9 +77,9 @@ def separate(args) -> None:
     ).to(device)
 
     flag_sum = sum([
-        len(levels) > 0, 
-        len(class_ids) > 0, 
-        len(queries_dir) > 0, 
+        len(levels) > 0,
+        len(class_ids) > 0,
+        len(queries_dir) > 0,
         len(query_emb_path) > 0,
     ])
 
@@ -92,28 +94,28 @@ def separate(args) -> None:
     # Separate by hierarchy
     if len(levels) > 0:
         separate_by_hierarchy(
-            audio=audio, 
-            sample_rate=sample_rate, 
-            segment_samples=segment_samples, 
-            at_model=at_model, 
+            audio=audio,
+            sample_rate=sample_rate,
+            segment_samples=segment_samples,
+            at_model=at_model,
             pl_model=pl_model,
-            device=device, 
-            levels=levels, 
-            ontology_path=ontology_path, 
-            non_sil_threshold=non_sil_threshold, 
+            device=device,
+            levels=levels,
+            ontology_path=ontology_path,
+            non_sil_threshold=non_sil_threshold,
             output_dir=output_dir
         )
 
     # Separate by class IDs
     elif len(class_ids) > 0:
         separate_by_class_ids(
-            audio=audio, 
-            sample_rate=sample_rate, 
-            segment_samples=segment_samples, 
-            at_model=at_model, 
+            audio=audio,
+            sample_rate=sample_rate,
+            segment_samples=segment_samples,
+            at_model=at_model,
             pl_model=pl_model,
-            device=device, 
-            class_ids=class_ids, 
+            device=device,
+            class_ids=class_ids,
             output_dir=output_dir
         )
 
@@ -132,19 +134,26 @@ def separate(args) -> None:
         )
 
         print("Time: {:.3f} s".format(time.time() - query_time))
-        
-        pickle_path = os.path.join("./query_conditions", "config={}".format(Path(config_yaml).stem), "{}.pkl".format(Path(queries_dir).stem))
-        
+
+        pickle_path = os.path.join(
+            "./query_conditions",
+            "config={}".format(
+                Path(config_yaml).stem),
+            "{}.pkl".format(
+                Path(queries_dir).stem))
+
         os.makedirs(os.path.dirname(pickle_path), exist_ok=True)
 
         pickle.dump(query_condition, open(pickle_path, 'wb'))
         print("Write query condition to {}".format(pickle_path))
 
-        output_path = os.path.join(output_dir, "query={}.wav".format(Path(queries_dir).stem))
+        output_path = os.path.join(
+            output_dir, "query={}.wav".format(
+                Path(queries_dir).stem))
 
         separate_by_query_condition(
-            audio=audio, 
-            segment_samples=segment_samples, 
+            audio=audio,
+            segment_samples=segment_samples,
             sample_rate=sample_rate,
             query_condition=query_condition,
             pl_model=pl_model,
@@ -153,14 +162,16 @@ def separate(args) -> None:
 
     # Load pre-calculated query embedding and do separation
     elif Path(query_emb_path).is_file():
-        
+
         query_condition = pickle.load(open(query_emb_path, 'rb'))
 
-        output_path = os.path.join(output_dir, "query={}.wav".format(Path('111').stem))
+        output_path = os.path.join(
+            output_dir, "query={}.wav".format(
+                Path('111').stem))
 
         separate_by_query_condition(
-            audio=audio, 
-            segment_samples=segment_samples, 
+            audio=audio,
+            segment_samples=segment_samples,
             sample_rate=sample_rate,
             query_condition=query_condition,
             pl_model=pl_model,
@@ -214,21 +225,22 @@ def load_ss_model(
         optimizer_type=None,
         learning_rate=None,
         lr_lambda_func=None,
+        map_location="cpu",
     )
 
     return pl_model
 
 
 def separate_by_hierarchy(
-    audio: np.ndarray, 
-    sample_rate: int, 
-    segment_samples: int, 
-    at_model: nn.Module, 
-    pl_model: pl.LightningModule, 
-    device: str, 
-    levels: List[int], 
-    ontology_path: str, 
-    non_sil_threshold: float, 
+    audio: np.ndarray,
+    sample_rate: int,
+    segment_samples: int,
+    at_model: nn.Module,
+    pl_model: pl.LightningModule,
+    device: str,
+    levels: List[int],
+    ontology_path: str,
+    non_sil_threshold: float,
     output_dir: str,
 ) -> None:
     r"""Separate by hierarchy."""
@@ -281,7 +293,7 @@ def separate_by_hierarchy(
             label = audioset632_id_to_lb[class_id]
 
             output_name = "{}.wav".format(label)
-            
+
             # if label in LB_TO_IX.keys():
             #     output_name = "classid={}_{}.wav".format(LB_TO_IX[label], label)
             # else:
@@ -313,13 +325,13 @@ def separate_by_hierarchy(
 
 
 def separate_by_class_ids(
-    audio: np.ndarray, 
-    sample_rate: int, 
-    segment_samples: int, 
-    at_model: nn.Module, 
-    pl_model: pl.LightningModule, 
-    device: str, 
-    class_ids: List[int], 
+    audio: np.ndarray,
+    sample_rate: int,
+    segment_samples: int,
+    at_model: nn.Module,
+    pl_model: pl.LightningModule,
+    device: str,
+    class_ids: List[int],
     output_dir: str,
 ) -> None:
     r"""Separate by class IDs."""
@@ -343,7 +355,8 @@ def separate_by_class_ids(
     # sep_audio: (audio_samples,)
 
     # Write out separated audio
-    output_name = ";".join(["{}_{}".format(class_id, IX_TO_LB[class_id]) for class_id in class_ids])
+    output_name = ";".join(
+        ["{}_{}".format(class_id, IX_TO_LB[class_id]) for class_id in class_ids])
     output_name += ".wav"
 
     output_path = os.path.join(
@@ -359,15 +372,15 @@ def separate_by_class_ids(
 
 
 def calculate_query_emb(
-    queries_dir: str, 
-    pl_model: pl.LightningModule, 
-    sample_rate: int, 
-    remove_sil: bool, 
+    queries_dir: str,
+    pl_model: pl.LightningModule,
+    sample_rate: int,
+    remove_sil: bool,
     segment_samples: int,
     batch_size=8,
 ) -> np.ndarray:
     r"""Calculate the query embddings of audio files in a directory."""
-    
+
     audio_names = sorted(os.listdir(queries_dir))
 
     avg_query_conditions = []
@@ -386,7 +399,7 @@ def calculate_query_emb(
             audio = remove_silence(audio=audio, sample_rate=sample_rate)
 
         audio_samples = audio.shape[0]
-        
+
         segments_num = int(np.ceil(audio_samples / segment_samples))
 
         segments = []
@@ -397,8 +410,9 @@ def calculate_query_emb(
             begin_sample = segment_index * segment_samples
             end_sample = begin_sample + segment_samples
 
-            segment = audio[begin_sample : end_sample]
-            segment = repeat_to_length(audio=segment, segment_samples=segment_samples)
+            segment = audio[begin_sample: end_sample]
+            segment = repeat_to_length(
+                audio=segment, segment_samples=segment_samples)
             segments.append(segment)
 
         if len(segments) == 0:
@@ -616,7 +630,7 @@ def separate_by_query_condition(
     """
 
     audio_samples = audio.shape[-1]
-    
+
     segments_num = int(np.ceil(audio_samples / segment_samples))
 
     segments = []
@@ -640,7 +654,7 @@ def separate_by_query_condition(
     # Do separation in mini-batch
     pointer = 0
     sep_segments = []
-    
+
     while pointer < len(segments):
 
         batch_segments = segments[pointer: pointer + batch_size]
@@ -659,7 +673,10 @@ def separate_by_query_condition(
 
     if output_path:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        soundfile.write(file=output_path, data=sep_audio, samplerate=sample_rate)
+        soundfile.write(
+            file=output_path,
+            data=sep_audio,
+            samplerate=sample_rate)
         print("Write out separated file to {}".format(output_path))
 
     return sep_audio
@@ -693,7 +710,9 @@ def _do_sep_by_id_in_minibatch(
         # bottleneck: (batch_size, bottleneck_dim)
 
         masked_bottleneck = torch.zeros_like(bottleneck)
-        masked_bottleneck[:, subclass_indexes] = bottleneck[:, subclass_indexes]
+        masked_bottleneck[:,
+                          subclass_indexes] = bottleneck[:,
+                                                         subclass_indexes]
 
         condition = pl_model.query_net.forward_adaptor(masked_bottleneck)
         # condition: (batch_size, condition_dim)
@@ -768,7 +787,7 @@ def _do_query_in_minibatch(
     """
 
     device = next(query_net.parameters()).device
-    
+
     batch_segments = torch.Tensor(batch_segments).to(device)
     # shape: (batch_size, segment_samples)
 
@@ -805,7 +824,7 @@ def write_audio(
 
 
 if __name__ == "__main__":
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--audio_path", type=str, required=True)
     parser.add_argument("--levels", nargs="*", type=int, default=[])

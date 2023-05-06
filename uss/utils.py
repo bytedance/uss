@@ -2,11 +2,11 @@ import datetime
 import json
 import logging
 import os
-from pathlib import Path
-import librosa
 import pickle
+from pathlib import Path
 from typing import Dict
 
+import librosa
 import numpy as np
 import torch
 import torch.nn as nn
@@ -65,7 +65,7 @@ def parse_yaml(config_yaml: str) -> Dict:
 
 def get_audioset632_id_to_lb(ontology_path: str) -> Dict:
     r"""Get AudioSet 632 classes ID to label mapping."""
-    
+
     audioset632_id_to_lb = {}
 
     with open(ontology_path) as f:
@@ -179,9 +179,13 @@ class StatisticsContainer(object):
 
     def flush(self):
         pickle.dump(self.statistics_dict, open(self.statistics_path, "wb"))
-        pickle.dump(self.statistics_dict, open(self.backup_statistics_path, "wb"))
+        pickle.dump(
+            self.statistics_dict, open(
+                self.backup_statistics_path, "wb"))
         logging.info("    Dump statistics to {}".format(self.statistics_path))
-        logging.info("    Dump statistics to {}".format(self.backup_statistics_path))
+        logging.info(
+            "    Dump statistics to {}".format(
+                self.backup_statistics_path))
 
 
 def get_mean_sdr_from_dict(sdris_dict):
@@ -194,7 +198,10 @@ def remove_silence(audio: np.ndarray, sample_rate: int) -> np.ndarray:
     window_size = int(sample_rate * 0.1)
     threshold = 0.02
 
-    frames = librosa.util.frame(x=audio, frame_length=window_size, hop_length=window_size).T
+    frames = librosa.util.frame(
+        x=audio,
+        frame_length=window_size,
+        hop_length=window_size).T
     # shape: (frames_num, window_size)
 
     new_frames = get_active_frames(frames, threshold)
@@ -223,9 +230,9 @@ def get_active_frames(frames: np.ndarray, threshold: float) -> np.ndarray:
 
 def repeat_to_length(audio: np.ndarray, segment_samples: int) -> np.ndarray:
     r"""Repeat audio to length."""
-    
+
     repeats_num = (segment_samples // audio.shape[-1]) + 1
-    audio = np.tile(audio, repeats_num)[0 : segment_samples]
+    audio = np.tile(audio, repeats_num)[0: segment_samples]
 
     return audio
 
@@ -236,7 +243,8 @@ def get_path(meta, re_download=False):
     remote_path = meta["remote_path"]
     size = meta["size"]
 
-    if not Path(path).is_file() or Path(path).stat().st_size != size or re_download:
+    if not Path(path).is_file() or Path(
+            path).stat().st_size != size or re_download:
 
         Path(path).parents[0].mkdir(parents=True, exist_ok=True)
         os.system("wget -O {} {}".format(path, remote_path))

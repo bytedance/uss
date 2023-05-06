@@ -1,13 +1,11 @@
-import os
+import logging
+
 import lightning.pytorch as pl
 from lightning.pytorch.utilities import rank_zero_only
+from torch.utils.tensorboard import SummaryWriter
 
 from uss.evaluate import AudioSetEvaluator
 from uss.utils import StatisticsContainer, get_mean_sdr_from_dict
-from torch.utils.tensorboard import SummaryWriter
-
-import numpy as np
-import logging
 
 
 class EvaluateCallback(pl.Callback):
@@ -37,17 +35,17 @@ class EvaluateCallback(pl.Callback):
         Returns:
             None
         """
-        
+
         # Evaluators
         self.balanced_train_evaluator = AudioSetEvaluator(
-            audios_dir=balanced_train_eval_dir, 
-            classes_num=classes_num, 
+            audios_dir=balanced_train_eval_dir,
+            classes_num=classes_num,
             max_eval_per_class=max_eval_per_class,
         )
 
         self.test_evaluator = AudioSetEvaluator(
-            audios_dir=test_eval_dir, 
-            classes_num=classes_num, 
+            audios_dir=test_eval_dir,
+            classes_num=classes_num,
             max_eval_per_class=max_eval_per_class,
         )
 
@@ -70,27 +68,33 @@ class EvaluateCallback(pl.Callback):
 
         if global_step == 1 or global_step % self.evaluate_step_frequency == 0:
 
-            for split, evaluator in zip(["balanced_train", "test"], [self.balanced_train_evaluator, self.test_evaluator]):
+            for split, evaluator in zip(["balanced_train", "test"], [
+                                        self.balanced_train_evaluator, self.test_evaluator]):
 
                 logging.info("------ {} ------".format(split))
 
                 stats_dict = evaluator(pl_model=self.pl_model)
 
                 median_sdris_dict = AudioSetEvaluator.get_median_metrics(
-                    stats_dict=stats_dict, 
+                    stats_dict=stats_dict,
                     metric_type="sdris_dict",
                 )
 
                 median_sdri = get_mean_sdr_from_dict(median_sdris_dict)
                 logging.info("Average SDRi: {:.3f}".format(median_sdri))
 
-                self.summary_writer.add_scalar("SDRi/{}".format(split), global_step=global_step, scalar_value=median_sdri)
+                self.summary_writer.add_scalar(
+                    "SDRi/{}".format(split),
+                    global_step=global_step,
+                    scalar_value=median_sdri)
 
-                logging.info("    Flush tensorboard logs to {}".format(self.summary_writer.log_dir))
+                logging.info(
+                    "    Flush tensorboard logs to {}".format(
+                        self.summary_writer.log_dir))
 
                 self.statistics_container.append(
-                    steps=global_step, 
-                    statistics={"sdri_dict": median_sdris_dict}, 
+                    steps=global_step,
+                    statistics={"sdri_dict": median_sdris_dict},
                     split=split,
                     flush=True,
-                )         
+                )

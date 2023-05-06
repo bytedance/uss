@@ -1,17 +1,14 @@
-from einops import rearrange
-import numpy as np
-from typing import Dict, List, NoReturn, Tuple
+from typing import Dict, List
+
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torchlibrosa.stft import STFT, ISTFT, magphase
 
-from uss.models.base import Base, init_layer, init_bn, act
+from uss.models.base import init_layer
 
 
 def get_film_meta(module: nn.Module) -> Dict:
     r"""Get FiLM meta dict of a module.
-    
+
     Args:
         module (nn.Module), the module to extract meta dict
 
@@ -37,14 +34,14 @@ def get_film_meta(module: nn.Module) -> Dict:
 
         if len(child_meta) > 0:
             film_meta[child_name] = child_meta
-    
+
     return film_meta
 
 
 class FiLM(nn.Module):
     def __init__(
-        self, 
-        film_meta: Dict, 
+        self,
+        film_meta: Dict,
         condition_size: int,
     ) -> None:
         r"""Create FiLM modules from film meta dict.
@@ -64,13 +61,13 @@ class FiLM(nn.Module):
         self.condition_size = condition_size
 
         self.modules, _ = self._create_film_modules(
-            film_meta=film_meta, 
+            film_meta=film_meta,
             prefix_names=[],
         )
-        
+
     def _create_film_modules(
-        self, 
-        film_meta: Dict, 
+        self,
+        film_meta: Dict,
         prefix_names: List[str],
     ):
         r"""Create FiLM modules.
@@ -79,21 +76,21 @@ class FiLM(nn.Module):
             film_meta (Dict), e.g.,
                 {"encoder_block1": {"conv_block1": {"beta1": 32, "beta2": 32}},
                  ...}
-            prefix_names (str), only used to get correct module name, e.g., 
+            prefix_names (str), only used to get correct module name, e.g.,
                 ["encoder_block1", "conv_block1"]
         """
 
         modules = {}
-       
+
         # Pre-order traversal of modules
         for module_name, value in film_meta.items():
 
             if isinstance(value, dict):
 
                 prefix_names.append(module_name)
-                
+
                 modules[module_name], _ = self._create_film_modules(
-                    film_meta=value, 
+                    film_meta=value,
                     prefix_names=prefix_names,
                 )
 
@@ -103,7 +100,7 @@ class FiLM(nn.Module):
                 unique_module_name = '->'.join(prefix_names)
 
                 modules[module_name] = self._add_film_layer_to_module(
-                    num_features=value, 
+                    num_features=value,
                     unique_module_name=unique_module_name,
                 )
 
@@ -112,8 +109,8 @@ class FiLM(nn.Module):
         return modules, prefix_names
 
     def _add_film_layer_to_module(
-        self, 
-        num_features: int, 
+        self,
+        num_features: int,
         unique_module_name: str,
     ) -> nn.Module:
         r"""Add a FiLM layer."""
@@ -132,7 +129,8 @@ class FiLM(nn.Module):
         for module_name, module in modules.items():
 
             if isinstance(module, dict):
-                film_data[module_name] = self._calculate_film_data(conditions, module)
+                film_data[module_name] = self._calculate_film_data(
+                    conditions, module)
 
             elif isinstance(module, nn.Module):
                 film_data[module_name] = module(conditions)[:, :, None, None]
@@ -143,7 +141,7 @@ class FiLM(nn.Module):
         r"""Forward conditions to all FiLM layers to get FiLM data.
 
         Args:
-            conditions (torch.Tensor): query net outputs, 
+            conditions (torch.Tensor): query net outputs,
                 (batch_size, condition_dim)
 
         Returns:
@@ -158,10 +156,10 @@ class FiLM(nn.Module):
                 ...,
             }
         """
-        
+
         film_dict = self._calculate_film_data(
-            conditions=conditions, 
+            conditions=conditions,
             modules=self.modules,
         )
-        
+
         return film_dict

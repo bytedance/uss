@@ -48,13 +48,13 @@ CUDA_VISIBLE_DEVICES=3 python3 uss/inference.py \
 ### evaluate on musdb18
 CUDA_VISIBLE_DEVICES=3 python3 uss/evaluate_musdb18.py calculate_condition \
     --queries_dir="resources/queries/drums" \
-    --config_yaml="./scripts/train/ss_model=resunet30,querynet=emb,data=full.yaml" \
-    --checkpoint_path="./workspaces/uss/checkpoints/train/config=ss_model=resunet30,querynet=emb,gpus=1,devices=1/step=300000.ckpt"
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
+    --checkpoint_path="/home/tiger/workspaces/uss/checkpoints/train/ss_model=resunet30,querynet=at_soft,data=full,devices=8/step=1000000.ckpt"
 
 
 CUDA_VISIBLE_DEVICES=3 python3 uss/evaluate_musdb18.py evaluate \
-    --query_emb_path="query_conditions/config=ss_model=resunet30,querynet=emb,data=full/drums.pkl" \
-    --config_yaml="./scripts/train/ss_model=resunet30,querynet=emb,data=full.yaml" \
-    --checkpoint_path="./workspaces/uss/checkpoints/train/config=ss_model=resunet30,querynet=emb,gpus=1,devices=1/step=300000.ckpt"
+    --query_emb_path="query_conditions/config=ss_model=resunet30,querynet=at_soft,data=full/drums.pkl" \
+    --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
+    --checkpoint_path="/home/tiger/workspaces/uss/checkpoints/train/ss_model=resunet30,querynet=at_soft,data=full,devices=8/step=1000000.ckpt"
 
-git merge tpami --no-commit to_haohe.sh kqq_runme.sh scripts/old scripts/train/old scripts/train uss/test9.py
+git merge tpami --no-ff --no-commit to_haohe.sh kqq_runme.sh scripts/old scripts/train/old scripts/train uss/test9.py

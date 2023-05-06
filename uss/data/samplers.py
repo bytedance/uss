@@ -1,26 +1,22 @@
 import logging
-import os
-import pathlib
-import pickle
-from typing import Dict, List, Union, Iterable, Iterator
 import time
+from typing import Dict, List
 
-import numpy as np
 import h5py
-from pytorch_lightning.utilities import rank_zero_only
+import numpy as np
 import torch.distributed as dist
 from torch.utils.data.sampler import Sampler
 
 
 class Base:
-    def __init__(self, 
-        indexes_hdf5_path: str, 
-        batch_size: int, 
-        steps_per_epoch: int,
-        random_seed: int, 
-    ):
+    def __init__(self,
+                 indexes_hdf5_path: str,
+                 batch_size: int,
+                 steps_per_epoch: int,
+                 random_seed: int,
+                 ):
         r"""Base class of train samplers.
-        
+
         Args:
             indexes_hdf5_path (str)
             batch_size (int)
@@ -39,8 +35,10 @@ class Base:
         load_time = time.time()
 
         with h5py.File(indexes_hdf5_path, 'r') as hf:
-            self.audio_names = [audio_name.decode() for audio_name in hf['audio_name'][:]]
-            self.hdf5_paths = [hdf5_path.decode() for hdf5_path in hf['hdf5_path'][:]]
+            self.audio_names = [audio_name.decode()
+                                for audio_name in hf['audio_name'][:]]
+            self.hdf5_paths = [hdf5_path.decode()
+                               for hdf5_path in hf['hdf5_path'][:]]
             self.indexes_in_hdf5 = hf['index_in_hdf5'][:]
             self.targets = hf['target'][:].astype(np.float32)
             # self.targets: (audios_num, classes_num)
@@ -48,25 +46,27 @@ class Base:
         self.audios_num, self.classes_num = self.targets.shape
 
         logging.info('Training number: {}'.format(self.audios_num))
-        logging.info('Load target time: {:.3f} s'.format(time.time() - load_time))
+        logging.info(
+            'Load target time: {:.3f} s'.format(
+                time.time() - load_time))
 
         # Number of training samples of different sound classes
         self.samples_num_per_class = np.sum(self.targets, axis=0)
-        
+
         logging.info('samples_num_per_class: {}'.format(
             self.samples_num_per_class.astype(np.int32)))
 
 
 class BalancedSampler(Base, Sampler):
-    def __init__(self, 
-        indexes_hdf5_path: str, 
-        batch_size: int, 
-        steps_per_epoch: int, 
-        random_seed: int = 1234, 
-    ) -> None:
-        r"""Balanced sampler. Generate mini-batches meta for training. Data are 
+    def __init__(self,
+                 indexes_hdf5_path: str,
+                 batch_size: int,
+                 steps_per_epoch: int,
+                 random_seed: int = 1234,
+                 ) -> None:
+        r"""Balanced sampler. Generate mini-batches meta for training. Data are
         evenly sampled from different sound classes.
-        
+
         Args:
             indexes_hdf5_path (str)
             batch_size (int)
@@ -78,24 +78,24 @@ class BalancedSampler(Base, Sampler):
         """
 
         super(BalancedSampler, self).__init__(
-            indexes_hdf5_path=indexes_hdf5_path, 
-            batch_size=batch_size, 
+            indexes_hdf5_path=indexes_hdf5_path,
+            batch_size=batch_size,
             steps_per_epoch=steps_per_epoch,
             random_seed=random_seed,
         )
 
-        # Training indexes of all sound classes. E.g.: 
+        # Training indexes of all sound classes. E.g.:
         # [[0, 11, 12, ...], [3, 4, 15, 16, ...], [7, 8, ...], ...]
         self.indexes_per_class = []
-        
+
         for k in range(self.classes_num):
             self.indexes_per_class.append(
                 np.where(self.targets[:, k] == 1)[0])
-            
+
         # Shuffle indexes
         for k in range(self.classes_num):
             self.random_state.shuffle(self.indexes_per_class[k])
-        
+
         self.queue = []  # Contains sound class IDs
 
         self.pointers_of_classes = [0] * self.classes_num
@@ -117,16 +117,16 @@ class BalancedSampler(Base, Sampler):
 
     def __iter__(self) -> List[Dict]:
         r"""Yield mini-batch meta.
-        
+
         Args:
             None
 
         Returns:
             batch_meta: e.g.: [
-                {"audio_name": "YfWBzCRl6LUs.wav", 
-                 "hdf5_path": "xx/balanced_train.h5", 
-                 "index_in_hdf5": 15734, 
-                 "target": [0, 1, 0, 0, ...]}, 
+                {"audio_name": "YfWBzCRl6LUs.wav",
+                 "hdf5_path": "xx/balanced_train.h5",
+                 "index_in_hdf5": 15734,
+                 "target": [0, 1, 0, 0, ...]},
             ...]
         """
 
@@ -146,100 +146,22 @@ class BalancedSampler(Base, Sampler):
                 pointer = self.pointers_of_classes[class_id]
                 self.pointers_of_classes[class_id] += 1
                 index = self.indexes_per_class[class_id][pointer]
-                
-                # When finish one epoch of a sound class, then shuffle its 
+
+                # When finish one epoch of a sound class, then shuffle its
                 # indexes and reset pointer.
                 if self.pointers_of_classes[class_id] >= self.samples_num_per_class[class_id]:
                     self.pointers_of_classes[class_id] = 0
                     self.random_state.shuffle(self.indexes_per_class[class_id])
 
                 batch_meta.append({
-                    'hdf5_path': self.hdf5_paths[index], 
-                    'index_in_hdf5': self.indexes_in_hdf5[index], 
+                    'hdf5_path': self.hdf5_paths[index],
+                    'index_in_hdf5': self.indexes_in_hdf5[index],
                     'class_id': class_id})
 
             yield batch_meta
 
     def __len__(self) -> int:
         return self.steps_per_epoch
-
-
-'''
-class UnBalancedSampler(Base):
-    def __init__(self, indexes_hdf5_path, batch_size, steps_per_epoch, black_list_csv=None, 
-        random_seed=1234):
-        """Balanced sampler. Generate batch meta for training. Data are equally 
-        sampled from different sound classes.
-        
-        Args:
-          indexes_hdf5_path: string
-          batch_size: int
-          black_list_csv: string
-          random_seed: int
-        """
-        super(UnBalancedSampler, self).__init__(indexes_hdf5_path, 
-            batch_size, black_list_csv, random_seed)
-
-        self.steps_per_epoch = steps_per_epoch
-        self.audios_num = self.targets.shape[0]
-
-        self.indexes = np.arange(self.audios_num)
-            
-        # Shuffle indexes
-        self.random_state.shuffle(self.indexes)
-        
-        self.pointer = 0
-
-    def __iter__(self):
-        """Generate batch meta for training. 
-        
-        Returns:
-          batch_meta: e.g.: [
-            {'audio_name': 'YfWBzCRl6LUs.wav', 
-             'hdf5_path': 'xx/balanced_train.h5', 
-             'index_in_hdf5': 15734, 
-             'target': [0, 1, 0, 0, ...]}, 
-            ...]
-        """
-
-        batch_size = self.batch_size
-
-        while True:
-            batch_meta = []
-            i = 0
-            while i < batch_size:
-                index = self.indexes[self.pointer]
-                self.pointer += 1
-
-                # Shuffle indexes and reset pointer
-                if self.pointer >= self.audios_num:
-                    self.pointer = 0
-                    self.random_state.shuffle(self.indexes)
-                
-                tmp = np.where(self.targets[index]==1)[0]
-
-                if len(tmp) == 0:
-                    continue
-
-                class_id = self.random_state.choice(tmp)
-                # from IPython import embed; embed(using=False); os._exit(0)
-
-                # If audio in black list then continue
-                if self.audio_names[index] in self.black_list_names:
-                    continue
-                else:
-                    batch_meta.append({
-                        'hdf5_path': self.hdf5_paths[index], 
-                        'index_in_hdf5': self.indexes_in_hdf5[index],
-                        'class_id': class_id,
-                    })
-                    i += 1
-
-            yield batch_meta
-
-    def __len__(self):
-        return self.steps_per_epoch
-'''
 
 
 class DistributedSamplerWrapper:
@@ -274,7 +196,7 @@ class DistributedSamplerWrapper:
             rank = 0
 
         for list_meta in self.sampler:
-            yield list_meta[rank :: num_replicas]
+            yield list_meta[rank:: num_replicas]
 
     def __len__(self) -> int:
         return len(self.sampler)

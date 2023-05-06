@@ -14,7 +14,7 @@ import soundfile
 import torch
 import torch.nn as nn
 
-from uss.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, csv_paths_dict, panns_paths_dict, model_paths_dict
+from uss.config import ID_TO_IX, LB_TO_IX, IX_TO_LB, csv_paths_dict, panns_paths_dict
 from uss.models.pl_modules import LitSeparation, get_model_class
 from uss.models.query_nets import initialize_query_net
 from uss.parse_ontology import Node, get_ontology_tree
@@ -82,8 +82,6 @@ def calcualte_condition(args) -> None:
 
     pickle.dump(query_condition, open(pickle_path, 'wb'))
     print("Write query condition to {}".format(pickle_path))
-
-    from IPython import embed; embed(using=False); os._exit(0)
 
 
 def evaluate(args):

@@ -1,9 +1,8 @@
-import os
 from pathlib import Path
+
 import pandas as pd
 
 from uss.utils import get_path
-
 
 csv_paths_dict = {
     "class_labels_indices.csv": {

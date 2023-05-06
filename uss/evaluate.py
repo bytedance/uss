@@ -11,7 +11,8 @@ import torch
 
 from uss.config import IX_TO_LB
 from uss.inference import load_ss_model
-from uss.utils import create_logging, calculate_sdr, parse_yaml, get_mean_sdr_from_dict
+from uss.utils import (calculate_sdr, create_logging, get_mean_sdr_from_dict,
+                       parse_yaml)
 
 
 class AudioSetEvaluator:
@@ -193,7 +194,7 @@ def test_evaluate(config_yaml: str, workspace: str):
 
         mean_sdri = get_mean_sdr_from_dict(median_sdris)
         # final_sdri = np.nanmean([mean_sdris[class_id]
-                                # for class_id in range(classes_num)])
+        # for class_id in range(classes_num)])
         print("--------")
         print("Average SDRi: {:.3f}".format(mean_sdri))
 

@@ -1,22 +1,8 @@
 import argparse
-import os
-import time
-import pickle
-import pathlib
-from typing import Dict, List
-
-import librosa
-import lightning.pytorch as pl
-import matplotlib.pyplot as plt
-import numpy as np
-import soundfile
-import torch
-import torch.nn as nn
 from pathlib import Path
 
 from uss.inference import separate
 from uss.utils import get_path
-
 
 model_paths_dict = {
     "at_soft": {
@@ -38,7 +24,14 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--audio_path", type=str, required=True)
-    parser.add_argument("-c", "--condition_type", type=str, default="at_soft", choices=["at_soft", "embedding"])
+    parser.add_argument(
+        "-c",
+        "--condition_type",
+        type=str,
+        default="at_soft",
+        choices=[
+            "at_soft",
+            "embedding"])
     parser.add_argument("--levels", nargs="*", type=int, default=[])
     parser.add_argument("--class_ids", nargs="*", type=int, default=[])
     parser.add_argument("--queries_dir", type=str, default="")
@@ -51,8 +44,10 @@ def main():
 
     # Use default pretrained models
     if condition_type == "at_soft":
-        args.config_yaml = get_path(meta=model_paths_dict[condition_type]["config_yaml"])
-        args.checkpoint_path = get_path(meta=model_paths_dict[condition_type]["checkpoint"])
+        args.config_yaml = get_path(
+            meta=model_paths_dict[condition_type]["config_yaml"])
+        args.checkpoint_path = get_path(
+            meta=model_paths_dict[condition_type]["checkpoint"])
 
     elif condition_type == "embedding":
         pass

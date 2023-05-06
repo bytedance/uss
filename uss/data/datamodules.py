@@ -1,10 +1,8 @@
-import os
-from typing import Dict, List, Optional, NoReturn
+from typing import Dict, List, Optional
 
-import numpy as np
-import h5py
-import torch
 import lightning.pytorch as pl
+import numpy as np
+import torch
 from torch.utils.data import DataLoader
 
 from uss.data.samplers import DistributedSamplerWrapper
@@ -48,7 +46,7 @@ class DataModule(pl.LightningDataModule):
 
         # The sampler yields a part of mini-batch meta on each device
         self.train_sampler = DistributedSamplerWrapper(self._train_sampler)
-        
+
     def train_dataloader(self) -> torch.utils.data.DataLoader:
         r"""Get train loader."""
 
@@ -69,7 +67,7 @@ class DataModule(pl.LightningDataModule):
         return train_loader
 
     def val_dataloader(self):
-        r"""We use `uss.callbacks.evaluate` to evaluate on the train / test 
+        r"""We use `uss.callbacks.evaluate` to evaluate on the train / test
         dataset"""
         pass
 
@@ -79,7 +77,7 @@ def collate_fn(list_data_dict: List[Dict]) -> Dict:
 
     Args:
         list_data_dict (List[Dict]): e.g., [
-            {"hdf5_path": "xx/balanced_train.h5", 
+            {"hdf5_path": "xx/balanced_train.h5",
              "index_in_hdf5": 11072,
              ...},
         ...]
@@ -90,13 +88,14 @@ def collate_fn(list_data_dict: List[Dict]) -> Dict:
             "index_in_hdf5": [11072, 17251, ...],
         }
     """
-    
+
     data_dict = {}
 
     for key in list_data_dict[0].keys():
-    
-        data_dict[key] = np.array([data_dict[key] for data_dict in list_data_dict])
-    
+
+        data_dict[key] = np.array([data_dict[key]
+                                  for data_dict in list_data_dict])
+
         if str(data_dict[key].dtype) in ["float32"]:
             data_dict[key] = torch.Tensor(data_dict[key])
 

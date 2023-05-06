@@ -1,5 +1,5 @@
 import json
-from typing import List, Union
+from typing import List
 
 from uss.config import ID_TO_IX, IDS, ROOT_CLASS_ID_DICT
 

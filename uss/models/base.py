@@ -1,9 +1,9 @@
-import torch.nn as nn
-import torch
-import numpy as np
-import torch.nn.functional as F
 import math
 
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
 from torchlibrosa.stft import magphase
 
 
@@ -25,7 +25,7 @@ def init_bn(bn):
 def init_embedding(layer):
     """Initialize a Linear or Convolutional layer. """
     nn.init.uniform_(layer.weight, -1., 1.)
- 
+
     if hasattr(layer, 'bias'):
         if layer.bias is not None:
             layer.bias.data.fill_(0.)
@@ -39,7 +39,7 @@ def init_gru(rnn):
         fan_in = length // len(init_funcs)
 
         for (i, init_func) in enumerate(init_funcs):
-            init_func(tensor[i * fan_in : (i + 1) * fan_in, :])
+            init_func(tensor[i * fan_in: (i + 1) * fan_in, :])
 
     def _inner_uniform(tensor):
         fan_in = nn.init._calculate_correct_fan(tensor, "fan_in")
@@ -88,7 +88,6 @@ class Base:
         sin = imag / mag
         return mag, cos, sin
 
-
     def wav_to_spectrogram_phase(self, input, eps=1e-10):
         """Waveform to spectrogram.
 
@@ -103,7 +102,8 @@ class Base:
         sin_list = []
         channels_num = input.shape[1]
         for channel in range(channels_num):
-            mag, cos, sin = self.spectrogram_phase(input[:, channel, :], eps=eps)
+            mag, cos, sin = self.spectrogram_phase(
+                input[:, channel, :], eps=eps)
             sp_list.append(mag)
             cos_list.append(cos)
             sin_list.append(sin)
@@ -130,7 +130,6 @@ class Base:
         output = torch.cat(sp_list, dim=1)
         return output
 
-
     def spectrogram_to_wav(self, input, spectrogram, length=None):
         """Spectrogram to waveform.
 
@@ -146,8 +145,15 @@ class Base:
         for channel in range(channels_num):
             (real, imag) = self.stft(input[:, channel, :])
             (_, cos, sin) = magphase(real, imag)
-            wav_list.append(self.istft(spectrogram[:, channel : channel + 1, :, :] * cos, 
-                spectrogram[:, channel : channel + 1, :, :] * sin, length))
-        
+            wav_list.append(self.istft(spectrogram[:,
+                                                   channel: channel + 1,
+                                                   :,
+                                                   :] * cos,
+                                       spectrogram[:,
+                                                   channel: channel + 1,
+                                                   :,
+                                                   :] * sin,
+                                       length))
+
         output = torch.stack(wav_list, dim=1)
         return output

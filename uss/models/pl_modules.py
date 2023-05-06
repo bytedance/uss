@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict
+from typing import Callable, Dict
 
 import lightning.pytorch as pl
 import torch
@@ -24,7 +24,7 @@ class LitSeparation(pl.LightningModule):
 
         Args:
             ss_model (nn.Module): universal source separation module
-            anchor_segment_detector (nn.Module): used to detect anchor segments 
+            anchor_segment_detector (nn.Module): used to detect anchor segments
                 from audio clips
             anchor_segment_mixer (nn.Module): used to mix segments into mixtures
             query_net (nn.Module): used to extract conditions for separation
@@ -45,8 +45,8 @@ class LitSeparation(pl.LightningModule):
         self.lr_lambda_func = lr_lambda_func
 
     def training_step(
-        self, 
-        batch_data_dict: Dict, 
+        self,
+        batch_data_dict: Dict,
         batch_idx: int
     ) -> torch.float:
         r"""Forward a mini-batch data to model, calculate loss function, and
@@ -79,7 +79,7 @@ class LitSeparation(pl.LightningModule):
         #     "bgn_sample": (batch_size,),
         #     "end_sample": (batch_size,),
         # }
-        
+
         # Mix segments into mixtures and execute energy augmentation
         mixtures, segments = self.anchor_segment_mixer(
             waveforms=segments_dict['waveform'],
@@ -92,7 +92,7 @@ class LitSeparation(pl.LightningModule):
             source=segments,
         )['output']
         # conditions: (batch_size, condition_dim)
-        
+
         input_dict = {
             'mixture': mixtures[:, None, :],
             'condition': conditions,
@@ -144,7 +144,7 @@ class LitSeparation(pl.LightningModule):
         }
 
         return output_dict
-    
+
 
 def get_model_class(model_type: str) -> nn.Module:
     r"""Get separation module by model_type."""
