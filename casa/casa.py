@@ -49,6 +49,7 @@ def main():
 
     condition_type = args.condition_type
 
+    # Use default pretrained models
     if condition_type == "at_soft":
         args.config_yaml = get_path(meta=model_paths_dict[condition_type]["config_yaml"])
         args.checkpoint_path = get_path(meta=model_paths_dict[condition_type]["checkpoint"])

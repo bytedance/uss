@@ -1,6 +1,6 @@
 # Computation Auditory Scene Analysis (CASA) and Universal Source Separation with Weakly labelled Data
 
-This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The CASA system is able to automatically detect and separate up to hundreds of sound classes using a single model. 
+This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The CASA system is able to automatically detect and separate up to hundreds of sound classes using a single model. The CASA system is trained on the weakly labelled AudioSet dataset.
 
 ## 1. Installation
 ```bash
@@ -9,41 +9,44 @@ pip install casa
 
 ## 2. Usage
 
-### Download test audio (optional)
+2.1 Download test audio (optional)
 ```bash
 wget -O "harry_potter.flac" "https://sandbox.zenodo.org/record/1196560/files/harry_potter.flac?download=1"
 ```
 
-### Default: automatic detect and separate
+2.2 Default: automatic detect and separate
 ```bash
 casa -i "harry_potter.flac"
 ```
 
-### Separate with different AudioSet hierarchy levels (The same as default)
+2.3 Separate with different AudioSet hierarchy levels (The same as default)
 ```bash
 casa -i "harry_potter.flac" --levels 1 2 3
 ```
 
-### Separate by class IDs
+2.4 Separate by class IDs
 ```bash
 casa -i "harry_potter.flac" --class_ids 0 1 2 3 4
 ```
 
-### Separate by queries
+2.5 Separate by queries
 
 Download query audios (optional)
+
 ```bash
 wget -O "queries.zip" "https://sandbox.zenodo.org/record/1196562/files/queries.zip?download=1"
 unzip queries.zip
 ```
 
+Do separation 
+
 ```bash
 casa -i "harry_potter.flac" --queries_dir "queries/speech"
 ```
 
-## 3. Inference by cloning the repo
+## 3. Git Clone the Repo and do Inference
 
-Developers could also git clone this repo and run the inference in the repo. This will let users to have more flexibility to modify the inference code.
+Users could also git clone this repo and run the inference in the repo. This will let users to have more flexibility to modify the inference code.
 
 ### Set up environment
 
@@ -63,13 +66,11 @@ CUDA_VISIBLE_DEVICES=0 python3 casa/inference.py \
     --checkpoint_path=""
 ```
 
-## Train from Scratch
+## 4. Train the CASA system from scratch
 
-## Download dataset. 
+4.0 Download dataset. 
 
-The [scripts/1_download_dataset.sh](scripts/1_download_dataset.sh) script is used for downloading all audio and metadata from the internet. The total size of AudioSet is around 1.1 TB. Notice there can be missing files on YouTube, so the numebr of files downloaded by users can be different from time to time. Our downloaded version contains 20550 / 22160 of the balaned training subset, 1913637 / 2041789 of the unbalanced training subset, and 18887 / 20371 of the evaluation subset. 
-
-For reproducibility, our downloaded dataset can be accessed at: link: [https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg](https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg), password: 0vc2
+Download the AudioSet dataset from the internet. The total size of AudioSet is around 1.1 TB. For reproducibility, our downloaded dataset can be accessed at: link: [https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg](https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg), password: 0vc2. Users may only download the balanced set (10.36 Gb) to train a baseline system.
 
 The downloaded data looks like:
 
@@ -95,8 +96,17 @@ dataset_root
      └── unbalanced_train_segments.csv
 </pre>
 
-## 2. Pack waveforms into hdf5 files
-The [scripts/2_pack_waveforms_to_hdf5s.sh](scripts/2_pack_waveforms_to_hdf5s.sh) script is used for packing all raw waveforms into 43 large hdf5 files for speed up training: one for balanced training subset, one for evaluation subset and 41 for unbalanced traning subset. The packed files looks like:
+Notice there can be missing files on YouTube, so the numebr of files downloaded by users can be different from time to time. Our downloaded version contains 20550 / 22160 of the balaned training subset, 1913637 / 2041789 of the unbalanced training subset, and 18887 / 20371 of the evaluation subset. 
+
+4.1 Pack waveforms into hdf5 files
+
+Audio files in a subdirectory will be packed into an hdf5 file. There will be 1 balanced train + 41 unbalanced train + 1 evaluation hdf5 files in total.
+
+```bash
+./scripts/1_pack_waveforms_to_hdf5s.sh
+```
+
+The packed hdf5 files looks like:
 
 <pre>
 workspace
@@ -117,8 +127,30 @@ workspace
               └── unbalanced_train_part40.h5
 </pre>
 
+4.2 Create indexes for balanced training
+
+Pack indexes into hdf5 files for balanced training.
+
 ```bash
-./scripts/train.sh
+./scripts/2_create_indexes.sh
+```
+
+4.3 Create evaluation data
+
+Create 100 2-second mixture and source pairs to evaluate the separation result of each sound class. There are in total 52,700 2-second pairs for 527 sound classes.
+
+```bash
+./scripts/3_create_evaluation_data.sh
+```
+
+4.4 Train
+
+Train the universal source separation system.
+
+```bash
+./scripts/4_train.sh
 ```
 
 ## Reference
+
+To appear
