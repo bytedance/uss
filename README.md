@@ -7,29 +7,29 @@ This is the PyTorch implementation of the Universal Source Separation with Weakl
 pip install uss
 ```
 
-## 2. Usage
+## 2. Separate Your Favorite Audio
 
-2.1 Download test audio (optional)
+### 2.1 Download test audio (optional)
 ```bash
 wget -O "harry_potter.flac" "https://sandbox.zenodo.org/record/1196560/files/harry_potter.flac?download=1"
 ```
 
-2.2 Default: automatic detect and separate
+### 2.2 Default: automatic detect and separate
 ```bash
 uss -i "harry_potter.flac"
 ```
 
-2.3 Separate with different AudioSet hierarchy levels (The same as default)
+### 2.3 Separate with different AudioSet hierarchy levels (The same as default)
 ```bash
 uss -i "harry_potter.flac" --levels 1 2 3
 ```
 
-2.4 Separate by class IDs
+### 2.4 Separate by class IDs
 ```bash
 uss -i "harry_potter.flac" --class_ids 0 1 2 3 4
 ```
 
-2.5 Separate by queries
+### 2.5 Separate by queries
 
 Download query audios (optional)
 
@@ -48,7 +48,7 @@ uss -i "harry_potter.flac" --queries_dir "queries/speech"
 
 Users could also git clone this repo and run the inference in the repo. This will let users to have more flexibility to modify the inference code.
 
-### Set up environment
+### 3.1 Set up environment
 
 ```bash
 conda create -n uss python=3.8
@@ -56,19 +56,19 @@ conda activate uss
 pip install -r requirements.txt
 ```
 
-### Inference
+### 3.2 Inference
 
 ```python
 CUDA_VISIBLE_DEVICES=0 python3 uss/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
-    --checkpoint_path=""
+    --checkpoint_path="${HOME}/.cache/uss/checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=100000.ckpt"
 ```
 
 ## 4. Train the USS system from scratch
 
-4.0 Download dataset. 
+### 4.0 Download dataset
 
 Download the AudioSet dataset from the internet. The total size of AudioSet is around 1.1 TB. For reproducibility, our downloaded dataset can be accessed at: link: [https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg](https://pan.baidu.com/s/13WnzI1XDSvqXZQTS-Kqujg), password: 0vc2. Users may only download the balanced set (10.36 Gb, 1% of the full set) to train a baseline system.
 
@@ -98,7 +98,7 @@ dataset_root
 
 Notice there can be missing files on YouTube, so the numebr of files downloaded by users can be different from time to time. Our downloaded version contains 20550 / 22160 of the balaned training subset, 1913637 / 2041789 of the unbalanced training subset, and 18887 / 20371 of the evaluation subset. 
 
-4.1 Pack waveforms into hdf5 files
+### 4.1 Pack waveforms into hdf5 files
 
 Audio files in a subdirectory will be packed into an hdf5 file. There will be 1 balanced train + 41 unbalanced train + 1 evaluation hdf5 files in total.
 
@@ -120,7 +120,7 @@ workspaces/uss
               └── unbalanced_train_part40.h5
 </pre>
 
-4.2 Create indexes for balanced training
+### 4.2 Create indexes for balanced training
 
 Pack indexes into hdf5 files for balanced training.
 
@@ -142,7 +142,7 @@ workspaces/uss
               └── unbalanced_train_part40.h5
 </pre>
 
-4.3 Create evaluation data
+### 4.3 Create evaluation data
 
 Create 100 2-second mixture and source pairs to evaluate the separation result of each sound class. There are in total 52,700 2-second pairs for 527 sound classes.
 
@@ -171,7 +171,7 @@ workspaces/uss
                   └── ... (100 mixture + 100 clean)
 </pre>
 
-4.4 Train
+### 4.4 Train
 
 Train the universal source separation system.
 

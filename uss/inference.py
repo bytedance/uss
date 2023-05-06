@@ -117,6 +117,7 @@ def separate(args) -> None:
             output_dir=output_dir
         )
 
+    # Calculate query embedding and do separation
     elif len(queries_dir) > 0:
 
         print("Calculate query condition ...")
@@ -150,6 +151,7 @@ def separate(args) -> None:
             output_path=output_path,
         )
 
+    # Load pre-calculated query embedding and do separation
     elif Path(query_emb_path).is_file():
         
         query_condition = pickle.load(open(query_emb_path, 'rb'))
@@ -164,6 +166,57 @@ def separate(args) -> None:
             pl_model=pl_model,
             output_path=output_path,
         )
+
+
+def load_ss_model(
+    configs: Dict,
+    checkpoint_path: str,
+) -> nn.Module:
+    r"""Load trained universal source separation model.
+
+    Args:
+        configs (Dict)
+        checkpoint_path (str): path of the checkpoint to load
+        device (str): e.g., "cpu" | "cuda"
+
+    Returns:
+        pl_model: pl.LightningModule
+    """
+
+    # Initialize query net
+    query_net = initialize_query_net(
+        configs=configs,
+    )
+
+    ss_model_type = configs["ss_model"]["model_type"]
+    input_channels = configs["ss_model"]["input_channels"]
+    output_channels = configs["ss_model"]["output_channels"]
+    condition_size = configs["query_net"]["outputs_num"]
+
+    # Initialize separation model
+    SsModel = get_model_class(model_type=ss_model_type)
+
+    ss_model = SsModel(
+        input_channels=input_channels,
+        output_channels=output_channels,
+        condition_size=condition_size,
+    )
+
+    # Load PyTorch Lightning model
+    pl_model = LitSeparation.load_from_checkpoint(
+        checkpoint_path=checkpoint_path,
+        strict=False,
+        ss_model=ss_model,
+        anchor_segment_detector=None,
+        anchor_segment_mixer=None,
+        query_net=query_net,
+        loss_function=None,
+        optimizer_type=None,
+        learning_rate=None,
+        lr_lambda_func=None,
+    )
+
+    return pl_model
 
 
 def separate_by_hierarchy(
@@ -378,57 +431,6 @@ def calculate_query_emb(
     return avg_query_condition
 
 
-def load_ss_model(
-    configs: Dict,
-    checkpoint_path: str,
-) -> nn.Module:
-    r"""Load trained universal source separation model.
-
-    Args:
-        configs (Dict)
-        checkpoint_path (str): path of the checkpoint to load
-        device (str): e.g., "cpu" | "cuda"
-
-    Returns:
-        pl_model: pl.LightningModule
-    """
-
-    # Initialize query net
-    query_net = initialize_query_net(
-        configs=configs,
-    )
-
-    ss_model_type = configs["ss_model"]["model_type"]
-    input_channels = configs["ss_model"]["input_channels"]
-    output_channels = configs["ss_model"]["output_channels"]
-    condition_size = configs["query_net"]["outputs_num"]
-
-    # Initialize separation model
-    SsModel = get_model_class(model_type=ss_model_type)
-
-    ss_model = SsModel(
-        input_channels=input_channels,
-        output_channels=output_channels,
-        condition_size=condition_size,
-    )
-
-    # Load PyTorch Lightning model
-    pl_model = LitSeparation.load_from_checkpoint(
-        checkpoint_path=checkpoint_path,
-        strict=False,
-        ss_model=ss_model,
-        anchor_segment_detector=None,
-        anchor_segment_mixer=None,
-        query_net=query_net,
-        loss_function=None,
-        optimizer_type=None,
-        learning_rate=None,
-        lr_lambda_func=None,
-    )
-
-    return pl_model
-
-
 def calculate_segment_at_probs(
     audio: np.ndarray,
     segment_samples: int,
@@ -569,7 +571,7 @@ def separate_by_query_conditions(
 
         batch_segments = active_segments[pointer: pointer + batch_size]
 
-        batch_sep_segments = _do_sep_in_minibatch(
+        batch_sep_segments = _do_sep_by_id_in_minibatch(
             batch_segments=batch_segments,
             subclass_indexes=subclass_indexes,
             pl_model=pl_model,
@@ -643,7 +645,7 @@ def separate_by_query_condition(
 
         batch_segments = segments[pointer: pointer + batch_size]
 
-        batch_sep_segments = _do_sep_in_minibatch2(
+        batch_sep_segments = _do_sep_by_query_in_minibatch(
             batch_segments=batch_segments,
             query_condition=query_condition,
             ss_model=pl_model.ss_model,
@@ -663,12 +665,12 @@ def separate_by_query_condition(
     return sep_audio
 
 
-def _do_sep_in_minibatch(
+def _do_sep_by_id_in_minibatch(
     batch_segments: np.ndarray,
     subclass_indexes: List[int],
     pl_model: pl.LightningModule,
 ) -> np.ndarray:
-    r"""Separate by mini-batch.
+    r"""Separate by class IDs in mini-batch.
 
     Args:
         batch_segments (np.ndarray): (batch_size, segment_samples)
@@ -712,16 +714,16 @@ def _do_sep_in_minibatch(
     return batch_sep_segments
 
 
-def _do_sep_in_minibatch2(
+def _do_sep_by_query_in_minibatch(
     batch_segments: np.ndarray,
     query_condition: np.ndarray,
     ss_model: nn.Module,
 ) -> np.ndarray:
-    r"""Separate by mini-batch.
+    r"""Separate by query condition in mini-batch.
 
     Args:
         batch_segments (np.ndarray): (batch_size, segment_samples)
-        subclass_indexes (List[int]): a list of subclasses
+        query_condition (np.ndarray): (batch_size, embedding_dim)
         pl_model (pl.LightningModule): universal separation model
 
     Returns:
@@ -800,28 +802,6 @@ def write_audio(
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     soundfile.write(file=output_path, data=audio, samplerate=sample_rate)
     print("Write out to {}".format(output_path))
-
-
-def main():
-    
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument("--audio_path", type=str)
-    parser.add_argument("--config_yaml", type=str)
-    parser.add_argument("--levels", nargs="*", type=int, default=[])
-    parser.add_argument("--class_ids", nargs="*", type=int, default=[])
-    parser.add_argument("--queries_dir", type=str, default="")
-    parser.add_argument("--query_emb_path", type=str, default="")
-    parser.add_argument("--output_dir", type=str, default="")
-
-    args = parser.parse_args()
-
-    # condition_type = args.condition_type
-
-    # args.config_yaml = get_path(meta=model_paths_dict[condition_type]["config_yaml"])
-    # args.checkpoint_path = get_path(meta=model_paths_dict[condition_type]["checkpoint"])
-
-    separate(args)
 
 
 if __name__ == "__main__":
