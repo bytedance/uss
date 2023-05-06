@@ -4,6 +4,7 @@ import time
 import pickle
 from pathlib import Path
 from typing import Dict, List
+import warnings
 
 import librosa
 import lightning.pytorch as pl
@@ -35,13 +36,15 @@ def separate(args) -> None:
     output_dir = args.output_dir
 
     non_sil_threshold = 1e-6
-    device = "cuda"
+    device = "cuda" if torch.cuda.is_available() else "cpu"
     ontology_path = get_path(csv_paths_dict["ontology.csv"])
 
     configs = parse_yaml(config_yaml)
     sample_rate = configs["data"]["sample_rate"]
     segment_seconds = configs["data"]["segment_seconds"]
     segment_samples = int(sample_rate * segment_seconds)
+
+    print("Using {}.".format(device))
 
     # Create directory
     if not output_dir:
@@ -50,11 +53,14 @@ def separate(args) -> None:
             Path(audio_path).stem)
 
     # Load pretrained universal source separation model
+    print("Loading model ...")
+
+    warnings.filterwarnings("ignore", category=UserWarning) 
+
     pl_model = load_ss_model(
         configs=configs,
         checkpoint_path=checkpoint_path,
     ).to(device)
-    from IPython import embed; embed(using=False); os._exit(0)
 
     # Load audio
     audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
@@ -80,6 +86,8 @@ def separate(args) -> None:
 
     if flag_sum == 0:
         levels = [1, 2, 3]
+
+    print("Separating ...")
 
     # Separate by hierarchy
     if len(levels) > 0:

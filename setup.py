@@ -24,6 +24,6 @@ setup(
     ],
     python_requires='>=3.8',
     entry_points={
-        'console_scripts': ['uss=uss.uss:main'],
+        'console_scripts': ['uss=uss.uss_inference:main'],
     },
 )

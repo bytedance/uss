@@ -8,7 +8,6 @@ import lightning.pytorch as pl
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from IPython import embed; embed(using=False); os._exit(0)
 from uss.callbacks.base import CheckpointEveryNSteps
 from uss.callbacks.evaluate import EvaluateCallback
 from uss.config import CLIP_SECONDS, FRAMES_PER_SECOND, panns_paths_dict
