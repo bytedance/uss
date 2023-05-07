@@ -1,8 +1,19 @@
 # Universal Source Separation (USS) with Weakly labelled Data
 
-This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The USS system can automatically detect and separate sound classes from a real recording. The USS system can separate up to hundreds of sound classes sound classes in a hierarchical ontology structure. The USS system is trained on the weakly labelled AudioSet dataset only.
+This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The USS system can automatically detect and separate sound classes from a real recording. The USS system can separate up to hundreds of sound classes sound classes in a hierarchical ontology structure. The USS system is trained on the weakly labelled AudioSet dataset only. Here is a demo:
+
+![alt text](resources/harry_potter.jpg)
+Fig. The hierarchical separation result of the trailer of *Harry Potter and the Sorcerer's Stone*. Copyright: [https://www.youtube.com/watch?v=VyHV0BRtdxo](https://www.youtube.com/watch?v=VyHV0BRtdxo)
 
 ## 1. Installation
+
+Prepare environment (optional)
+```bash
+conda create -n uss python=3.8
+conda activate uss
+```
+
+Install the package
 ```bash
 pip install uss
 ```
@@ -11,15 +22,15 @@ pip install uss
 
 ### 2.1 Download test audio (optional)
 ```bash
-wget -O "harry_potter.flac" "https://sandbox.zenodo.org/record/1196562/files/harry_potter.flac?download=1"
+wget -O "harry_potter.flac" "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/harry_potter.flac"
 ```
 
-### 2.2 Default: automatic detect and separate
+### 2.2 Detect and separate sound classes in hierarchical levels (default)
 ```bash
 uss -i "harry_potter.flac"
 ```
 
-### 2.3 Separate with different AudioSet hierarchy levels (The same as default)
+### 2.3 The same as default
 ```bash
 uss -i "harry_potter.flac" --levels 1 2 3
 ```
@@ -34,7 +45,7 @@ uss -i "harry_potter.flac" --class_ids 0 1 2 3 4
 Download query audios (optional)
 
 ```bash
-wget -O "queries.zip" "https://sandbox.zenodo.org/record/1196562/files/queries.zip?download=1"
+wget -O "queries.zip" "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/queries.zip"
 unzip queries.zip
 ```
 
@@ -58,12 +69,20 @@ pip install -r requirements.txt
 
 ### 3.2 Inference
 
+Download our pretrained checkpoint: 
+
+```bash
+wget -O "pretrained.ckpt" "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D1000000.ckpt"
+```
+
+Then perform the inference:
+
 ```python
 CUDA_VISIBLE_DEVICES=0 python3 uss/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
-    --checkpoint_path="${HOME}/.cache/uss/checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=100000.ckpt"
+    --checkpoint_path="pretrained.ckpt"
 ```
 
 ## 4. Train the USS system from scratch

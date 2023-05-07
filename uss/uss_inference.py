@@ -8,12 +8,12 @@ model_paths_dict = {
     "at_soft": {
         "config_yaml": {
             "path": Path(Path.home(), ".cache/uss/scripts/ss_model=resunet30,querynet=at_soft,data=full.yaml"),
-            "remote_path": "https://sandbox.zenodo.org/record/1196562/files/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull.yaml?download=1",
+            "remote_path": "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull.yaml?download=1",
             "size": 1558,
         },
         "checkpoint": {
             "path": Path(Path.home(), ".cache/uss/checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=1000000.ckpt"),
-            "remote_path": "https://sandbox.zenodo.org/record/1196562/files/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D1000000.ckpt?download=1",
+            "remote_path": "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D1000000.ckpt",
             "size": 1121024828,
         },
     }
