@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 setup(
     name='uss',
-    version='0.0.2',
+    version='0.0.4',
     description='Universal source separation (USS) with weakly labelled data.',
     author='Qiuqiang Kong',
     author_email='qiuqiangkong@gmail.com',

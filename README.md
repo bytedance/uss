@@ -1,8 +1,19 @@
 # Universal Source Separation (USS) with Weakly labelled Data
 
-This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The USS system can automatically detect and separate sound classes from a real recording. The USS system can separate up to hundreds of sound classes sound classes in a hierarchical ontology structure. The USS system is trained on the weakly labelled AudioSet dataset only.
+This is the PyTorch implementation of the Universal Source Separation with Weakly labelled Data [1]. The USS system can automatically detect and separate sound classes from a real recording. The USS system can separate up to hundreds of sound classes sound classes in a hierarchical ontology structure. The USS system is trained on the weakly labelled AudioSet dataset only. Here is a demo:
+
+![alt text](resources/harry_potter.jpg)
+Fig. The hierarchical separation result of the trailer of *Harry Potter and the Sorcerer's Stone*. Copyright: [https://www.youtube.com/watch?v=VyHV0BRtdxo](https://www.youtube.com/watch?v=VyHV0BRtdxo)
 
 ## 1. Installation
+
+Prepare environment (optional)
+```bash
+conda create -n uss python=3.8
+conda activate uss
+```
+
+Install the package
 ```bash
 pip install uss
 ```
@@ -14,12 +25,12 @@ pip install uss
 wget -O "harry_potter.flac" "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/harry_potter.flac"
 ```
 
-### 2.2 Default: automatic detect and separate
+### 2.2 Detect and separate sound classes in hierarchical levels (default)
 ```bash
 uss -i "harry_potter.flac"
 ```
 
-### 2.3 Separate with different AudioSet hierarchy levels (The same as default)
+### 2.3 The same as default
 ```bash
 uss -i "harry_potter.flac" --levels 1 2 3
 ```
