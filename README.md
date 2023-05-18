@@ -207,6 +207,13 @@ CUDA_VISIBLE_DEVICES=0 python3 uss/train.py \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=balanced.yaml"
 ```
 
-## Reference
+## Citation
 
-To appear
+<pre>
+@article{kong2023universal,
+  title={Universal Source Separation with Weakly Labelled Data},
+  author={Kong, Qiuqiang and Chen, Ke and Liu, Haohe and Du, Xingjian and Berg-Kirkpatrick, Taylor and Dubnov, Shlomo and Plumbley, Mark D},
+  journal={arXiv preprint arXiv:2305.07447},
+  year={2023}
+}
+</pre>
