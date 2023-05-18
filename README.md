@@ -209,6 +209,8 @@ CUDA_VISIBLE_DEVICES=0 python3 uss/train.py \
 
 ## Citation
 
+[paper link](https://arxiv.org/pdf/2305.07447.pdf)
+
 <pre>
 @article{kong2023universal,
   title={Universal Source Separation with Weakly Labelled Data},
