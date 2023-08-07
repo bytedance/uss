@@ -60,7 +60,7 @@ def pack_waveforms_to_hdf5(args):
     with h5py.File(waveforms_hdf5_path, 'w') as hf:
         hf.create_dataset('audio_name', shape=((audios_num,)), dtype='S20')
         hf.create_dataset('waveform', shape=((audios_num, clip_samples)), dtype=np.int16)
-        hf.create_dataset('target', shape=((audios_num, classes_num)), dtype=np.bool)
+        hf.create_dataset('target', shape=((audios_num, classes_num)), dtype=bool)
         hf.attrs.create('sample_rate', data=sample_rate, dtype=np.int32)
 
         # Pack waveform & target of several audio clips to a single hdf5 file

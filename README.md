@@ -219,3 +219,12 @@ CUDA_VISIBLE_DEVICES=0 python3 uss/train.py \
   year={2023}
 }
 </pre>
+
+## FAQ
+
+If from uss.config import CLASSES_NUM occur, then execute:
+
+```bash
+PYTHONPATH=`pwd`
+export PYTHONPATH
+```

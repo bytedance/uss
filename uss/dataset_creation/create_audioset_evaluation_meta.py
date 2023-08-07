@@ -1,5 +1,6 @@
 import argparse
 import os
+import multiprocessing
 import pathlib
 
 import numpy as np
@@ -50,6 +51,7 @@ def create_evaluation_meta(args):
     split = args.split
     output_audios_dir = args.output_audios_dir
     output_meta_csv_path = args.output_meta_csv_path
+    device = args.device
 
     sample_rate = SAMPLE_RATE
     frames_per_second = FRAMES_PER_SECOND
@@ -64,8 +66,7 @@ def create_evaluation_meta(args):
 
     batch_size = 32
     steps_per_epoch = 10000
-    num_workers = 16
-    device = "cuda"
+    num_workers = min(16, multiprocessing.cpu_count())
     sed_model_type = "Cnn14_DecisionLevelMax"
 
     if split == 'balanced_train':
@@ -300,6 +301,10 @@ if __name__ == "__main__":
         "--output_meta_csv_path",
         type=str,
         required=True)
+    parser_train.add_argument(
+        "--device",
+        type=str,
+        default="cuda")
 
     args = parser.parse_args()
     args.filename = pathlib.Path(__file__).stem
