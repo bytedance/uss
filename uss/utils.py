@@ -13,6 +13,8 @@ import torch.nn as nn
 import yaml
 from panns_inference.models import Cnn14, Cnn14_DecisionLevelMax
 
+from uss.data.anchor_segment_mixers import get_energy_ratio
+
 
 def create_logging(log_dir, filemode):
     os.makedirs(log_dir, exist_ok=True)
@@ -251,3 +253,18 @@ def get_path(meta, re_download=False):
         print("Download to {}".format(path))
 
     return path
+
+
+def trunc_or_repeat_to_length(
+    audio: np.ndarray, 
+    segment_samples: int
+) -> np.ndarray:
+    r"""Repeat audio to length."""
+    
+    if audio.shape[0] < segment_samples:
+        repeats_num = (segment_samples // audio.shape[-1]) + 1
+        audio = np.tile(audio, repeats_num)[0 : segment_samples]
+
+    audio = librosa.util.fix_length(data=audio, size=segment_samples, axis=0)
+
+    return audio
