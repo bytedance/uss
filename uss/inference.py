@@ -4,7 +4,7 @@ import pickle
 import time
 import warnings
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import librosa
 import lightning.pytorch as pl
@@ -371,6 +371,7 @@ def separate_by_class_ids(
     )
 
 
+'''
 def calculate_query_emb(
     queries_dir: str,
     pl_model: pl.LightningModule,
@@ -378,8 +379,11 @@ def calculate_query_emb(
     remove_sil: bool,
     segment_samples: int,
     batch_size=8,
+    audio_paths: List[str] = None
 ) -> np.ndarray:
     r"""Calculate the query embddings of audio files in a directory."""
+
+    # if audio_paths is not None:
 
     audio_names = sorted(os.listdir(queries_dir))
 
@@ -391,6 +395,89 @@ def calculate_query_emb(
         print("{} / {}, {}".format(audio_index, len(audio_names), audio_name))
 
         audio_path = os.path.join(queries_dir, audio_name)
+
+        audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
+
+        # Remove silence
+        if remove_sil:
+            audio = remove_silence(audio=audio, sample_rate=sample_rate)
+
+        audio_samples = audio.shape[0]
+
+        segments_num = int(np.ceil(audio_samples / segment_samples))
+
+        segments = []
+
+        # Get all segments
+        for segment_index in range(segments_num):
+
+            begin_sample = segment_index * segment_samples
+            end_sample = begin_sample + segment_samples
+
+            segment = audio[begin_sample: end_sample]
+            segment = repeat_to_length(
+                audio=segment, segment_samples=segment_samples)
+            segments.append(segment)
+
+        if len(segments) == 0:
+            continue
+
+        segments = np.stack(segments, axis=0)
+
+        # Calcualte query conditions in mini-batch
+        pointer = 0
+        query_conditions = []
+
+        while pointer < len(segments):
+
+            batch_segments = segments[pointer: pointer + batch_size]
+
+            query_condition = _do_query_in_minibatch(
+                batch_segments=batch_segments,
+                query_net=pl_model.query_net,
+            )
+
+            query_conditions.extend(query_condition)
+            pointer += batch_size
+
+        avg_query_condition = np.mean(query_conditions, axis=0)
+        avg_query_conditions.append(avg_query_condition)
+
+    # Average query conditions of all audio files
+    avg_query_condition = np.mean(avg_query_conditions, axis=0)
+
+    return avg_query_condition
+'''
+
+def calculate_query_emb(
+    queries_dir: str,
+    pl_model: pl.LightningModule,
+    sample_rate: int,
+    remove_sil: bool,
+    segment_samples: int,
+    batch_size=8,
+    query_paths: List[str] = None
+) -> np.ndarray:
+    r"""Calculate the query embddings of audio files in a directory."""
+
+    if queries_dir is not None:
+        audio_paths = sorted(list(Path(queries_dir).glob("*.wav")))
+
+    elif query_paths is not None:
+        audio_paths = query_paths
+
+    else:
+        raise NotImplementedError
+
+    avg_query_conditions = []
+
+    # Average query conditions of all audios
+    # for audio_index, audio_name in enumerate(audio_names):
+    for audio_index, audio_path in enumerate(audio_paths):
+
+        audio_name = Path(audio_path).name
+
+        print("{} / {}, {}".format(audio_index, len(audio_paths), audio_name))
 
         audio, fs = librosa.load(path=audio_path, sr=sample_rate, mono=True)
 

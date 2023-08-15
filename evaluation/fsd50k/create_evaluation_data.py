@@ -16,6 +16,7 @@ import pandas as pd
 from uss.data.anchor_segment_mixers import get_energy_ratio
 from uss.utils import trunc_or_repeat_to_length
 from uss.config import SAMPLE_RATE
+from evaluation.fsdkaggle2018.create_evaluation_data import all_classes_finished, write_meta_dict_to_csv
 
 
 def parse_meta_csv(meta_csv):
@@ -42,7 +43,11 @@ def create_evaluation_data(args):
     eval_segments_per_class = 100
     random_state = np.random.RandomState(1234)
 
-    if split == "test":
+    if split == "train":
+        audios_dir = Path(dataset_dir, "FSD50K.dev_audio")
+        meta_csv_path = Path(dataset_dir, "FSD50K.ground_truth", "dev.csv")
+
+    elif split == "test":
         audios_dir = Path(dataset_dir, "FSD50K.eval_audio")
         meta_csv_path = Path(dataset_dir, "FSD50K.ground_truth", "eval.csv")
 
@@ -66,18 +71,21 @@ def create_evaluation_data(args):
 
     while True:
 
-        indexes = random_state.permutation(audios_num - 1)
+        indexes = random_state.permutation(audios_num)
 
         for i in indexes:
 
-            if labels[i] != labels[i + 1]:
+            i1 = i
+            i2 = (i + 1) % audios_num
 
-                label = labels[i]
+            if labels[i1] != labels[i2]:
+
+                label = labels[i1]
 
                 if count_dict[label] < eval_segments_per_class:
 
-                    source1_path = Path(audios_dir, audio_names[i])
-                    source2_path = Path(audios_dir, audio_names[i + 1])
+                    source1_path = Path(audios_dir, audio_names[i1])
+                    source2_path = Path(audios_dir, audio_names[i2])
 
                     source1, _ = librosa.core.load(source1_path, sr=sample_rate, mono=True)
                     source2, _ = librosa.core.load(source2_path, sr=sample_rate, mono=True)
@@ -135,11 +143,11 @@ def create_evaluation_data(args):
                     print("Write out to {}".format(source_path))
                     print("{}: {} / {}".format(label, count_dict[label], eval_segments_per_class))
 
-                    meta_dict["source1_name"].append(audio_names[i])
-                    meta_dict["source2_name"].append(audio_names[i + 1])
+                    meta_dict["source1_name"].append(audio_names[i1])
+                    meta_dict["source2_name"].append(audio_names[i2])
 
-                    meta_dict["source1_label"].append(labels[i])
-                    meta_dict["source2_label"].append(labels[i + 1])
+                    meta_dict["source1_label"].append(labels[i1])
+                    meta_dict["source2_label"].append(labels[i2])
 
                     meta_dict["source2_scale_factor"].append(ratio)
 
@@ -148,63 +156,12 @@ def create_evaluation_data(args):
         if all_classes_finished(count_dict, eval_segments_per_class):
             break
 
+        # print(all_classes_finished(count_dict, eval_segments_per_class), count_dict)
+
     write_meta_dict_to_csv(meta_dict, output_meta_csv_path)
     print("Write csv to {}".format(output_meta_csv_path))
 
     print('Time: {:.3f} s'.format(time.time() - total_time))
-
-
-def all_classes_finished(count_dict, segments_per_class):
-    r"""Check if all sound classes have #segments_per_class segments in
-    count_dict.
-
-    Args:
-        count_dict: dict, e.g., {
-            0: 12,
-            1: 4,
-            ...,
-            526: 33,
-        }
-        segments_per_class: int
-
-    Returns:
-        bool
-    """
-
-    for label in count_dict.keys():
-        if count_dict[label] < segments_per_class:
-            return False
-
-    return True
-
-
-def write_meta_dict_to_csv(meta_dict, output_meta_csv_path):
-    r"""Write meta dict into a csv file.
-
-    Args:
-        meta_dict: dict, e.g., {
-            'index_in_hdf5': (segments_num,),
-            'audio_name': (segments_num,),
-            'class_id': (segments_num,),
-        }
-        output_csv_path: str
-    """
-
-    keys = list(meta_dict.keys())
-
-    items_num = len(meta_dict[keys[0]])
-
-    Path(output_meta_csv_path).parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_meta_csv_path, 'w') as fw:
-
-        fw.write(','.join(keys) + "\n")
-
-        for n in range(items_num):
-
-            fw.write(",".join([str(meta_dict[key][n]) for key in keys]) + "\n")
-
-    print('Write out to {}'.format(output_meta_csv_path))
 
 
 if __name__ == "__main__":

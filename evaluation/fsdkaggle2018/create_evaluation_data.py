@@ -44,8 +44,12 @@ def create_evaluation_data(args):
 
     audios_dir = Path(dataset_dir, "FSDKaggle2018.audio_{}".format(split))
 
-    if split == "test":
+    if split == "train":
+        meta_csv_path = Path(dataset_dir, "FSDKaggle2018.meta", "train_post_competition.csv")
+
+    elif split == "test":
         meta_csv_path = Path(dataset_dir, "FSDKaggle2018.meta", "test_post_competition_scoring_clips.csv")
+
     else:
         raise NotImplementedError
 
@@ -70,14 +74,17 @@ def create_evaluation_data(args):
 
         for i in indexes:
 
-            if labels[i] != labels[i + 1]:
+            i1 = i
+            i2 = (i + 1) % audios_num
 
-                label = labels[i]
+            if labels[i1] != labels[i2]:
+
+                label = labels[i1]
 
                 if count_dict[label] < eval_segments_per_class:
 
-                    source1_path = Path(audios_dir, audio_names[i])
-                    source2_path = Path(audios_dir, audio_names[i + 1])
+                    source1_path = Path(audios_dir, audio_names[i1])
+                    source2_path = Path(audios_dir, audio_names[i2])
 
                     source1, _ = librosa.core.load(source1_path, sr=sample_rate, mono=True)
                     source2, _ = librosa.core.load(source2_path, sr=sample_rate, mono=True)
@@ -135,11 +142,11 @@ def create_evaluation_data(args):
                     print("Write out to {}".format(source_path))
                     print("{}: {} / {}".format(label, count_dict[label], eval_segments_per_class))
 
-                    meta_dict["source1_name"].append(audio_names[i])
-                    meta_dict["source2_name"].append(audio_names[i + 1])
+                    meta_dict["source1_name"].append(audio_names[i1])
+                    meta_dict["source2_name"].append(audio_names[i2])
 
-                    meta_dict["source1_label"].append(labels[i])
-                    meta_dict["source2_label"].append(labels[i + 1])
+                    meta_dict["source1_label"].append(labels[i1])
+                    meta_dict["source2_label"].append(labels[i2])
 
                     meta_dict["source2_scale_factor"].append(ratio)
 
