@@ -16,7 +16,7 @@ import pandas as pd
 from uss.data.anchor_segment_mixers import get_energy_ratio
 from uss.utils import trunc_or_repeat_to_length
 from uss.config import SAMPLE_RATE
-from evaluation.fsdkaggle2018.create_evaluation_data import all_classes_finished, write_meta_dict_to_csv
+from evaluation.dataset_creation.fsdkaggle2018 import all_classes_finished, write_meta_dict_to_csv
 
 
 def parse_meta_csv(meta_csv):
@@ -165,6 +165,7 @@ def create_evaluation_data(args):
 
 
 if __name__ == "__main__":
+    
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="mode")
 

@@ -48,7 +48,7 @@ def calculate_embeddings(args):
             query_paths=query_paths,
         )
 
-        output_emb_path = Path(output_embs_dir, Path(config_yaml).stem, "{}.pkl".format(label))
+        output_emb_path = Path(output_embs_dir, "{}.pkl".format(label))
         Path(output_emb_path).parent.mkdir(parents=True, exist_ok=True)
 
         pickle.dump(avg_query_condition, open(output_emb_path, "wb"))
@@ -57,7 +57,7 @@ def calculate_embeddings(args):
 
 def get_paths_dict(dataset_type, audios_dir):
 
-    if dataset_type in ["fsdkaggle2018", "fsd50k", "slakh2100"]:
+    if dataset_type in ["audioset", "fsdkaggle2018", "fsd50k", "slakh2100"]:
 
         sub_dirs = sorted(os.listdir(audios_dir))
 

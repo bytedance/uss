@@ -17,7 +17,7 @@ from uss.data.samplers import BalancedSampler
 from uss.utils import get_path, load_pretrained_panns
 
 
-def create_evaluation_meta(args):
+def create_evaluation_data(args):
     r"""Create csv containing information of anchor segments for creating
     mixtures. For each sound class k, we select M anchor segments that will be
     randomly mixed with anchor segments that do not contain sound class k. In
@@ -47,8 +47,9 @@ def create_evaluation_meta(args):
     """
 
     # arguments & parameters
-    workspace = args.workspace
-    split = args.split
+    # workspace = args.workspace
+    indexes_hdf5_path = args.indexes_hdf5_path
+    # split = args.split
     output_audios_dir = args.output_audios_dir
     output_meta_csv_path = args.output_meta_csv_path
     device = args.device
@@ -69,12 +70,12 @@ def create_evaluation_meta(args):
     num_workers = min(16, multiprocessing.cpu_count())
     sed_model_type = "Cnn14_DecisionLevelMax"
 
-    if split == 'balanced_train':
-        indexes_hdf5_path = os.path.join(
-            workspace, "hdf5s/indexes/balanced_train.h5")
+    # if split == 'balanced_train':
+    #     indexes_hdf5_path = os.path.join(
+    #         workspace, "hdf5s/indexes/balanced_train.h5")
 
-    elif split == 'test':
-        indexes_hdf5_path = os.path.join(workspace, "hdf5s/indexes/eval.h5")
+    # elif split == 'test':
+    #     indexes_hdf5_path = os.path.join(workspace, "hdf5s/indexes/eval.h5")
     # E.g., indexes_hdf5 looks like: {
     #     'audio_name': (audios_num,),
     #     'hdf5_path': (audios_num,),
@@ -284,33 +285,29 @@ def write_meta_dict_to_csv(meta_dict, output_meta_csv_path):
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="")
+    parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="mode")
 
-    parser_train = subparsers.add_parser("create_evaluation_meta")
-    parser_train.add_argument("--workspace", type=str, required=True)
-    parser_train.add_argument(
-        "--split",
-        type=str,
-        required=True,
-        choices=[
-            'balanced_train',
-            'test'])
-    parser_train.add_argument("--output_audios_dir", type=str, required=True)
-    parser_train.add_argument(
+    parser = argparse.ArgumentParser()
+    # parser.add_argument("--workspace", type=str, required=True)
+    parser.add_argument("--indexes_hdf5_path", type=str, required=True)
+    # parser.add_argument(
+    #     "--split",
+    #     type=str,
+    #     required=True,
+    #     choices=[
+    #         "balanced_train",
+    #         "test"])
+    parser.add_argument("--output_audios_dir", type=str, required=True)
+    parser.add_argument(
         "--output_meta_csv_path",
         type=str,
         required=True)
-    parser_train.add_argument(
+    parser.add_argument(
         "--device",
         type=str,
         default="cuda")
 
     args = parser.parse_args()
-    args.filename = pathlib.Path(__file__).stem
-
-    if args.mode == "create_evaluation_meta":
-        create_evaluation_meta(args)
-
-    else:
-        raise Exception("Error argument!")
+    
+    create_evaluation_data(args)
