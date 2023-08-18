@@ -10,7 +10,7 @@ BASE_CONFIG=`basename $CHECKPOINT_PATH .ckpt`
 DEVICE="cuda"
 SPLIT="test"
 
-# Users may evaluate the datasets in individual terminals for speed up.
+# # Evaluate on all datasets. Users may evaluate the datasets in individual terminals for speed up.
 for DATASET_TYPE in "audioset" "fsdkaggle2018" "fsd50k" "slakh2100" "musdb18" "voicebank-demand"
 do
 	CUDA_VISIBLE_DEVICES=0 python evaluation/separate_and_evaluate.py \
@@ -19,6 +19,6 @@ do
 		--dataset_type=$DATASET_TYPE \
 		--audios_dir="${WORKSPACE}/evaluation_data/${DATASET_TYPE}/2s_segments_${SPLIT}" \
 		--query_embs_dir="${WORKSPACE}/evaluation_embeddings/${DATASET_TYPE}/${BASE_CONFIG}" \
-		--metrics_path="${WORKSPACE}/evaluation_metrics/${DATASET_TYPE}/${BASE_CONFIG}" \
+		--metrics_path="${WORKSPACE}/evaluation_metrics/${DATASET_TYPE}/${BASE_CONFIG}.pkl" \
 		--device=$DEVICE
 done

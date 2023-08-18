@@ -96,7 +96,6 @@ def separate_and_evaluate(args) -> NoReturn:
         print("Save metrics_dict to {}".format(metrics_path))
     
 
-
 def get_2s_segments_paths_dict(audios_dir: str, query_embs_dir: str) -> Dict:
     r"""Get 2s segments paths dict.
 
@@ -115,7 +114,7 @@ def get_2s_segments_paths_dict(audios_dir: str, query_embs_dir: str) -> Dict:
     for sub_dir in sub_dirs:
 
         label = re.search('=(.*)', sub_dir.name).group(1)
-        query_emb_path = Path(query_embs_dir, "{}.pkl".format(label))
+        query_emb_path = Path(query_embs_dir, "label={}.pkl".format(label))
 
         paths_dict[label] = {
             "source_path": [],
@@ -152,7 +151,7 @@ def get_musdb18_paths_dict(audios_dir: str, query_embs_dir: str) -> Dict:
 
     for label in labels:
 
-        query_emb_path = Path(query_embs_dir, "{}.pkl".format(label))
+        query_emb_path = Path(query_embs_dir, "label={}.pkl".format(label))
 
         paths_dict[label] = {
             "source_path": [],
@@ -190,7 +189,7 @@ def get_voicebank_demand_paths_dict(audios_dir: str, query_embs_dir: str) -> Dic
 
     for label in labels:
 
-        query_emb_path = Path(query_embs_dir, "{}.pkl".format(label))
+        query_emb_path = Path(query_embs_dir, "label={}.pkl".format(label))
 
         paths_dict[label] = {
             "source_path": [],

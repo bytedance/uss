@@ -17,7 +17,7 @@ do
 		--config_yaml=$CONFIG_YAML \
 		--checkpoint_path=$CHECKPOINT_PATH \
 		--dataset_type=$DATASET_TYPE \
-		--audios_dir="${WORKSPACE}/evaluation/${DATASET_TYPE}/2s_segments_${SPLIT}" \
-		--query_embs_dir="${WORKSPACE}/evaluation/embeddings/${DATASET_TYPE}/${BASE_CONFIG}" \
+		--audios_dir="${WORKSPACE}/evaluation_data/${DATASET_TYPE}/2s_segments_${SPLIT}" \
+		--query_embs_dir="${WORKSPACE}/evaluation_embeddings/${DATASET_TYPE}/${BASE_CONFIG}" \
 		--device=$DEVICE
 done
