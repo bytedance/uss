@@ -1,25 +1,28 @@
 import argparse
-import os
 import time
-import pickle
-import csv
-# import pathlib
-import yaml
 from pathlib import Path
+from typing import List, NoReturn, Tuple
 
-import h5py
-import soundfile
-import torch
 import librosa
 import numpy as np
 import pandas as pd
-
-from uss.data.anchor_segment_mixers import get_energy_ratio
-from uss.utils import trunc_or_repeat_to_length
+import soundfile
+import yaml
+from evaluation.dataset_creation.audioset import (all_classes_finished,
+                                                  write_meta_dict_to_csv)
 from uss.config import SAMPLE_RATE
 
 
-def parse_meta_csv(meta_csv):
+def parse_meta_csv(meta_csv: str) -> Tuple[List[str], List[str]]:
+    r"""Parse csv file.
+
+    Args:
+        meta_csv: str, path of csv file
+
+    Returns:
+        audio_names: List[str]
+        labels: List[str]
+    """
 
     df = pd.read_csv(meta_csv, sep=',')
     audio_names = df["fname"].values
@@ -28,8 +31,20 @@ def parse_meta_csv(meta_csv):
     return audio_names, labels
 
     
-def create_evaluation_data(args):
+def create_evaluation_data(args) -> NoReturn:
+    r"""Create 2-second <mixture, source> pairs for evaluation.
 
+    Args:
+        dataset_dir: str, directory of the Slakh2100 dataset.
+        split: str, "train" | "test"
+        output_audios_dir: str, directory to write out audios
+        output_meta_csv_path: str, path to write out csv file
+
+    Returns:
+        NoReturn
+    """
+
+    # Args & parameters
     dataset_dir = args.dataset_dir
     split = args.split
     output_audios_dir = args.output_audios_dir
@@ -37,7 +52,6 @@ def create_evaluation_data(args):
 
     sample_rate = SAMPLE_RATE
     segment_seconds = 2.
-    segment_samples = int(segment_seconds * sample_rate)
 
     eval_segments_per_class = 100
     random_state = np.random.RandomState(1234)
@@ -50,9 +64,17 @@ def create_evaluation_data(args):
 
     total_time = time.time()
 
-    tmp_dict = {}
+    # The candidate_dict contains <onset, offset> pairs for each plugin_name.
+    candidates_dict = {}
+    # E.g., {"funk_kit.nkm":
+    #  [('datasets/slakh2100/train/Track00011/stem/S08.flac',
+    #   'datasets/slakh2100/train/Track00011/mix.flac',
+    #   132.0, 
+    #   134.0), ...]
+    #   ...}
 
     for n, sub_dir in enumerate(sub_dirs):
+
         print(sub_dir)
 
         # Parse meta yaml
@@ -73,6 +95,7 @@ def create_evaluation_data(args):
             if not Path(source_path).is_file():
                 continue
 
+            # Load source and detect active frames
             source, origin_sr = librosa.load(path=source_path, sr=None, mono=True)
 
             origin_segment_samples = int(origin_sr * segment_seconds)
@@ -85,49 +108,37 @@ def create_evaluation_data(args):
 
             energy_array = np.max(np.abs(segments), axis=0)
 
-            sorted_indexes = np.argsort(energy_array)[::-1]
-
-            candidate_indexes = []
+            # Add active frames to candidates_dict
             bgn_end_pairs = []
 
-            '''
-            for i in range(10):
-                index = sorted_indexes[i]
-                if energy_array[index] > 0.1:
-                    candidate_indexes.append(index)
-                    bgn_end_pairs.append((index * segment_seconds, (index + 1) * segment_seconds))
-            '''
             for i in range(len(energy_array)):
                 if energy_array[i] > 0.1:
                     bgn_end_pairs.append((str(source_path), str(mixture_path), i * segment_seconds, (i + 1) * segment_seconds))
 
 
-            if plugin_name not in tmp_dict.keys():
-                tmp_dict[plugin_name] = bgn_end_pairs
+            if plugin_name not in candidates_dict.keys():
+                candidates_dict[plugin_name] = bgn_end_pairs
             else:
-                tmp_dict[plugin_name].extend(bgn_end_pairs)
-
-        # if n == 10:
-        #     break
-
-    count_dict = {key: 0 for key in tmp_dict.keys()}
+                candidates_dict[plugin_name].extend(bgn_end_pairs)
+    
+    count_dict = {key: 0 for key in candidates_dict.keys()}
 
     meta_dict = {}
     meta_dict['source1_name'] = []
     meta_dict['source1_label'] = []
     meta_dict["source1_begin_second"] = []
 
-    for label in tmp_dict.keys():
+    for label in candidates_dict.keys():
 
-        if len(tmp_dict[label]) > 10:
+        if len(candidates_dict[label]) > 10:
 
-            if len(tmp_dict[label]) < eval_segments_per_class:
+            if len(candidates_dict[label]) < eval_segments_per_class:
 
-                bgn_end_pairs = tmp_dict[label]
+                bgn_end_pairs = candidates_dict[label]
 
             else:
-                indexes = random_state.choice(np.arange(len(tmp_dict[label])), size=eval_segments_per_class, replace=False)
-                bgn_end_pairs = [tmp_dict[label][i] for i in indexes]
+                indexes = random_state.choice(np.arange(len(candidates_dict[label])), size=eval_segments_per_class, replace=False)
+                bgn_end_pairs = [candidates_dict[label][i] for i in indexes]
 
             for i in range(len(bgn_end_pairs)):
 
@@ -145,7 +156,7 @@ def create_evaluation_data(args):
                 segment1 = librosa.resample(segment1, orig_sr=origin_sr, target_sr=sample_rate)
                 mixture = librosa.resample(mixture, orig_sr=origin_sr, target_sr=sample_rate)
 
-                #
+                # Paths to write out wavs
                 mixture_name = "label={},index={:03d},mixture.wav".format(
                     label, count_dict[label])
 
@@ -164,6 +175,7 @@ def create_evaluation_data(args):
 
                 Path(mixture_path).parent.mkdir(parents=True, exist_ok=True)
 
+                # Write out mixture and source
                 soundfile.write(
                     file=mixture_path,
                     data=mixture,
@@ -186,66 +198,9 @@ def create_evaluation_data(args):
         if all_classes_finished(count_dict, eval_segments_per_class):
             break
 
-        # break 
-
     write_meta_dict_to_csv(meta_dict, output_meta_csv_path)
-    # print("Write csv to {}".format(output_meta_csv_path))
 
     print('Time: {:.3f} s'.format(time.time() - total_time))
-    from IPython import embed; embed(using=False); os._exit(0)
-
-
-def all_classes_finished(count_dict, segments_per_class):
-    r"""Check if all sound classes have #segments_per_class segments in
-    count_dict.
-
-    Args:
-        count_dict: dict, e.g., {
-            0: 12,
-            1: 4,
-            ...,
-            526: 33,
-        }
-        segments_per_class: int
-
-    Returns:
-        bool
-    """
-
-    for label in count_dict.keys():
-        if count_dict[label] < segments_per_class:
-            return False
-
-    return True
-
-
-def write_meta_dict_to_csv(meta_dict, output_meta_csv_path):
-    r"""Write meta dict into a csv file.
-
-    Args:
-        meta_dict: dict, e.g., {
-            'index_in_hdf5': (segments_num,),
-            'audio_name': (segments_num,),
-            'class_id': (segments_num,),
-        }
-        output_csv_path: str
-    """
-
-    keys = list(meta_dict.keys())
-
-    items_num = len(meta_dict[keys[0]])
-
-    Path(output_meta_csv_path).parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_meta_csv_path, 'w') as fw:
-
-        fw.write(','.join(keys) + "\n")
-
-        for n in range(items_num):
-
-            fw.write(",".join([str(meta_dict[key][n]) for key in keys]) + "\n")
-
-    print('Write out to {}'.format(output_meta_csv_path))
 
 
 if __name__ == "__main__":
@@ -258,7 +213,6 @@ if __name__ == "__main__":
     parser.add_argument("--output_audios_dir", type=str, required=True)
     parser.add_argument("--output_meta_csv_path", type=str, required=True)
 
-    # Parse arguments.
     args = parser.parse_args()
 
     create_evaluation_data(args)

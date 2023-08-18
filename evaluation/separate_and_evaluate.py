@@ -1,27 +1,40 @@
-import re
-import os
-import pickle
 import argparse
-from pathlib import Path
-import librosa
-import numpy as np
-from pesq import pesq
-import pysepm
-import museval
+import pickle
+import re
 import time
+from pathlib import Path
+from typing import Dict, List, NoReturn
 
-from uss.inference import calculate_query_emb, load_ss_model, separate_by_query_condition
+import librosa
+import lightning.pytorch as pl
+import numpy as np
 from uss.config import SAMPLE_RATE
-from uss.utils import parse_yaml, calculate_sdr
+from uss.inference import load_ss_model, separate_by_query_condition
+from uss.utils import calculate_sdr, parse_yaml
 
 
-def separate_and_evaluate(args):
+def separate_and_evaluate(args) -> NoReturn:
+    r"""Separate mixture and evaluate on evaluation datasets. Users need to 
+    calculate query embeddings before using this function.
+
+    Args:
+        config_yaml: str
+        checkpoint_path: str, path of checkpoint
+        audios_dir: str, directory of audios
+        query_embs_dir: str, directory of pre-calculated query embeddings
+        device: str, e.g., "cuda" | "cpu"
+
+    Returns:
+        NoReturn
+    """
     
+    # Arguments & parameters
     config_yaml = args.config_yaml
     checkpoint_path = args.checkpoint_path
     dataset_type = args.dataset_type
     audios_dir = args.audios_dir
     query_embs_dir = args.query_embs_dir
+    metrics_path = args.metrics_path
     device = args.device
 
     sample_rate = SAMPLE_RATE
@@ -30,17 +43,19 @@ def separate_and_evaluate(args):
 
     configs = parse_yaml(config_yaml)
 
+    # Load USS model.
     pl_model = load_ss_model(
         configs=configs,
         checkpoint_path=checkpoint_path,
     ).to(device)
+
+    evaluation_time = time.time()
 
     if dataset_type in ["audioset", "fsdkaggle2018", "fsd50k", "slakh2100"]:
 
         paths_dict = get_2s_segments_paths_dict(
             audios_dir=audios_dir, 
             query_embs_dir=query_embs_dir, 
-            config_yaml=config_yaml,
         )
         metric_types = ["sdr", "sdri"]
 
@@ -49,7 +64,6 @@ def separate_and_evaluate(args):
         paths_dict = get_musdb18_paths_dict(
             audios_dir=audios_dir, 
             query_embs_dir=query_embs_dir, 
-            config_yaml=config_yaml,
         )
         metric_types = ["musdb18_sdr", "musdb18_sdri"]
 
@@ -58,14 +72,13 @@ def separate_and_evaluate(args):
         paths_dict = get_voicebank_demand_paths_dict(
             audios_dir=audios_dir, 
             query_embs_dir=query_embs_dir, 
-            config_yaml=config_yaml,
         )
         metric_types = ["pesq", "ssnr", "csig", "cbak", "covl"]
 
     else:
         raise NotImplementedError
 
-    metrics_dict = add(
+    metrics_dict = separate_and_calculate_metrics(
         paths_dict=paths_dict, 
         pl_model=pl_model, 
         segment_samples=segment_samples, 
@@ -73,34 +86,27 @@ def separate_and_evaluate(args):
         metric_types=metric_types
     )
 
-    # Print
-    labels = metrics_dict.keys()
-    median_metrics_dict = {}
+    # Print metrics
+    print_metrics(metrics_dict)
+    print("Evaluation time: {:.3f}".format(time.time() - evaluation_time))
 
-    for label in labels:
-
-        median_metrics_dict[label] = {}
-
-        metric_types = metrics_dict[label].keys()
-
-        string = label
-
-        for metric_type in metric_types:
-            median_metrics_dict[label][metric_type] = np.nanmedian(metrics_dict[label][metric_type])
-            string += ", {}: {:.4f}".format(metric_type, median_metrics_dict[label][metric_type])
-            
-        print(string)
-
-    #
-    print("-------")
-    string = "Avg"
-    for metric_type in metric_types:
-        avg_metric = np.nanmean([median_metrics_dict[label][metric_type] for label in labels])
-        string += ", {}: {:.4f}".format(metric_type, avg_metric)
-    print(string)
+    if metrics_path:
+        Path(metrics_path).parent.mkdir(parents=True, exist_ok=True)
+        pickle.dump(metrics_dict, open(metrics_path, 'wb'))
+        print("Save metrics_dict to {}".format(metrics_path))
+    
 
 
-def get_2s_segments_paths_dict(audios_dir, query_embs_dir, config_yaml):
+def get_2s_segments_paths_dict(audios_dir: str, query_embs_dir: str) -> Dict:
+    r"""Get 2s segments paths dict.
+
+    Args:
+        audios_dir: str
+        query_embs_dir: str
+
+    Returns:
+        paths_dict: Dict
+    """
 
     sub_dirs = sorted(list(Path(audios_dir).glob("*")))
 
@@ -130,7 +136,16 @@ def get_2s_segments_paths_dict(audios_dir, query_embs_dir, config_yaml):
     return paths_dict
 
 
-def get_musdb18_paths_dict(audios_dir, query_embs_dir, config_yaml):
+def get_musdb18_paths_dict(audios_dir: str, query_embs_dir: str) -> Dict:
+    r"""Get 2s segments paths dict.
+
+    Args:
+        audios_dir: str
+        query_embs_dir: str
+
+    Returns:
+        paths_dict: Dict
+    """
 
     labels = ["vocals", "bass", "drums", "other"]
     paths_dict = {}
@@ -159,7 +174,16 @@ def get_musdb18_paths_dict(audios_dir, query_embs_dir, config_yaml):
     return paths_dict
 
 
-def get_voicebank_demand_paths_dict(audios_dir, query_embs_dir, config_yaml):
+def get_voicebank_demand_paths_dict(audios_dir: str, query_embs_dir: str) -> Dict:
+    r"""Get 2s segments paths dict.
+
+    Args:
+        audios_dir: str
+        query_embs_dir: str
+
+    Returns:
+        paths_dict: Dict
+    """
 
     labels = ["speech"]
     paths_dict = {}
@@ -185,7 +209,30 @@ def get_voicebank_demand_paths_dict(audios_dir, query_embs_dir, config_yaml):
 
     return paths_dict
 
-def add(paths_dict, pl_model, segment_samples, sample_rate, metric_types):
+
+def separate_and_calculate_metrics(
+    paths_dict: Dict, 
+    pl_model: pl.LightningModule, 
+    segment_samples: int, 
+    sample_rate: int, 
+    metric_types: List[str]
+) -> Dict:
+    r"""Calculate metrics of the separated audio.
+
+    Args:
+        paths_dict: Dict
+        pl_model: pl.LightningModule, USS model
+        segment_samples: int
+        sample_rate: int
+        metric_types: List[str], e.g., ["sdr", "pesq", ...]
+
+    Returns:
+        metrics_dict: Dict, e.g., {
+            "Piano": {"sdr": [3.20, 5.13, ...], "pesq": [2.10, 1.94, ...]}
+            "Violin": ...,
+            ...
+        }
+    """
 
     metrics_dict = {}
 
@@ -229,13 +276,29 @@ def add(paths_dict, pl_model, segment_samples, sample_rate, metric_types):
             for metric_type in metric_types:
                 metrics_dict[label][metric_type].append(metrics[metric_type])
 
-            break
-            
     return metrics_dict
 
 
 
-def calculate_metrics(ref, est, mix, metric_types, sample_rate):
+def calculate_metrics(
+    ref: np.ndarray, 
+    est: np.ndarray, 
+    mix: np.ndarray, 
+    metric_types: List[str], 
+    sample_rate: int
+) -> Dict:
+    r"""Calculate the separation metric.
+
+    Args:
+        ref: np.ndarray, reference clean source
+        est: np.ndarray, separated source
+        mix: np.ndarray, mixture
+        metric_types: List[str]
+        sample_rate: int
+
+    Returns:
+        metrics: Dict
+    """
 
     metrics = {}
 
@@ -252,6 +315,8 @@ def calculate_metrics(ref, est, mix, metric_types, sample_rate):
             metrics["sdri"] = metrics["sdr"] - sdr0
 
         elif metric_type == "musdb18_sdr":
+
+            import museval
 
             (sdrs, _, _, _) = museval.evaluate(
                 references=est[None, :, None], 
@@ -277,6 +342,9 @@ def calculate_metrics(ref, est, mix, metric_types, sample_rate):
 
         elif metric_type in ["pesq", "ssnr", "csig", "cbak", "covl"]:
 
+            import pysepm
+            from pesq import pesq
+
             if metric_type in metrics.keys():
                 continue
 
@@ -300,15 +368,54 @@ def calculate_metrics(ref, est, mix, metric_types, sample_rate):
     return metrics
 
 
+def print_metrics(metrics_dict) -> NoReturn:
+    r"""Print metrics.
+
+    Args:
+        metrics_dict: Dict
+
+    Returns:
+        NoReturn
+    """
+
+    labels = metrics_dict.keys()
+    median_metrics_dict = {}
+
+    # Print class-wise scores
+    for label in labels:
+
+        median_metrics_dict[label] = {}
+
+        metric_types = metrics_dict[label].keys()
+
+        string = label
+
+        for metric_type in metric_types:
+            median_metrics_dict[label][metric_type] = np.nanmedian(metrics_dict[label][metric_type])
+            string += ", {}: {:.4f}".format(metric_type, median_metrics_dict[label][metric_type])
+            
+        print(string)
+
+    # Print average scores
+    print("-------")
+    string = "Avg"
+    for metric_type in metric_types:
+        avg_metric = np.nanmean([median_metrics_dict[label][metric_type] for label in labels])
+        string += ", {}: {:.4f}".format(metric_type, avg_metric)
+
+    print(string)
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_yaml', type=str)
-    parser.add_argument('--checkpoint_path', type=str)
-    parser.add_argument('--dataset_type', type=str)
-    parser.add_argument('--audios_dir', type=str)
-    parser.add_argument('--query_embs_dir', type=str)
-    parser.add_argument('--device', type=str)
+    parser.add_argument('--config_yaml', type=str, required=True)
+    parser.add_argument('--checkpoint_path', type=str, required=True)
+    parser.add_argument('--dataset_type', type=str, required=True)
+    parser.add_argument('--audios_dir', type=str, required=True)
+    parser.add_argument('--query_embs_dir', type=str, required=True)
+    parser.add_argument('--metrics_path', type=str, default="")
+    parser.add_argument('--device', type=str, default="cuda")
 
     args = parser.parse_args()
     

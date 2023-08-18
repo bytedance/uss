@@ -78,7 +78,7 @@ wget -O "pretrained.ckpt" "https://huggingface.co/RSNuts/Universal_Source_Separa
 Then perform the inference:
 
 ```python
-CUDA_VISIBLE_DEVICES=0 python3 uss/inference.py \
+CUDA_VISIBLE_DEVICES=0 python uss/inference.py \
     --audio_path=./resources/harry_potter.flac \
     --levels 1 2 3 \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=full.yaml" \
@@ -95,7 +95,7 @@ The downloaded data looks like:
 
 <pre>
 
-dataset_root
+audioset
 ├── audios
 │    ├── balanced_train_segments
 │    |    └── ... (~20550 wavs, the number can be different from time to time)
@@ -122,7 +122,7 @@ Notice there can be missing files on YouTube, so the numebr of files downloaded 
 Audio files in a subdirectory will be packed into an hdf5 file. There will be 1 balanced train + 41 unbalanced train + 1 evaluation hdf5 files in total.
 
 ```bash
-./scripts/1_pack_waveforms_to_hdf5s.sh
+bash scripts/1_create_train_data/1_pack_waveforms_to_hdf5s.sh
 ```
 
 The packed hdf5 files looks like:
@@ -144,7 +144,7 @@ workspaces/uss
 Pack indexes into hdf5 files for balanced training.
 
 ```bash
-./scripts/2_create_indexes.sh
+bash scripts/1_create_train_data/2_create_indexes.sh
 ```
 
 The packed indexes files look like:
@@ -166,7 +166,7 @@ workspaces/uss
 Create 100 2-second mixture and source pairs to evaluate the separation result of each sound class. There are in total 52,700 2-second pairs for 527 sound classes.
 
 ```bash
-./scripts/3_create_evaluation_data.sh
+bash scripts/2_create_evaluation_data/audioset.sh
 ```
 
 The evaluation data look like:
@@ -195,16 +195,57 @@ workspaces/uss
 Train the universal source separation system.
 
 ```bash
-./scripts/4_train.sh
+bash scripts/3_train.sh
 ```
 
 Or simply execute:
 
 ```bash
 WORKSPACE="workspaces/uss"
-CUDA_VISIBLE_DEVICES=0 python3 uss/train.py \
+CUDA_VISIBLE_DEVICES=0 python uss/train.py \
     --workspace=$WORKSPACE \
     --config_yaml="./scripts/train/ss_model=resunet30,querynet=at_soft,data=balanced.yaml"
+```
+
+### 5 Evaluation
+
+We provide data to evaluate the USS system on AudioSet, FSDKaggle2018, FSD50k, Slakh2100, MUSDB18, and Voicebank-Demand datasets.
+
+5.0 Data processing
+
+**Users can skip this stage** and directly download the processed evaluation data listed in the table below.
+
+In case the users wish to know more details of the evaluation data creation, please run the following scripts.
+
+```bash
+bash scripts/2_create_evaluation_data/fsdkaggle2018.sh
+bash scripts/2_create_evaluation_data/fsd50k.sh
+bash scripts/2_create_evaluation_data/slakh2100.sh
+````
+
+| Dataset          | Type    | Sound classes | Duration (hours) | Download |
+|------------------|---------|---------------|------------------|----------|
+| AudioSet         | Audio   | 527           | 29.3             |          |
+| FSDKaggle2018    | Audio   | 41            | 2.3              |          |
+| FSD50k           | Audio   | 195           | 10.8             |          |
+| Slakh2100        | Music   |               |                  |          |
+| MUSDB18          | Music   | 4             |                  | https://zenodo.org/record/3338373 |
+| Voicebank-Demand | Speech  | 1             |                  | https://datashare.ed.ac.uk/handle/10283/1942?show=full |
+
+## 5.1 Calculate the query embeddings of datasets. 
+
+Users may run the following script line by line.
+
+```bash
+bash scripts/5_evaluate/1_calculate_query_embeddings.sh
+```
+
+## 5.2 Separate and evaluate on datasets.
+
+Users may run the following script line by line.
+
+```bash
+bash scripts/5_evaluate/2_separate_and_evaluate.sh
 ```
 
 ## Citation

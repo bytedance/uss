@@ -1,7 +1,7 @@
 import argparse
-import os
 import multiprocessing
-import pathlib
+from typing import Dict, NoReturn
+from pathlib import Path
 
 import numpy as np
 import soundfile
@@ -17,39 +17,28 @@ from uss.data.samplers import BalancedSampler
 from uss.utils import get_path, load_pretrained_panns
 
 
-def create_evaluation_data(args):
-    r"""Create csv containing information of anchor segments for creating
-    mixtures. For each sound class k, we select M anchor segments that will be
-    randomly mixed with anchor segments that do not contain sound class k. In
-    total, there are classes_num x M mixtures to separate. Anchor segments are
-    short segments (such as 2 s) detected by a pretrained sound event detection
-    system on 10-second audio clips from AudioSet. All time stamps of anchor
-    segments are written into a csv file. E.g.,
+def create_evaluation_data(args) -> NoReturn:
+    r"""Create 52,700 2-second <mixture, source> pairs from the balanced train / 
+    test set of AudioSet for evaluation. Each sound class contains 100 pairs 
+    for evaluation. The 2-second segment is mined by using a trained sound event 
+    detection (SED) system.
 
-    .. code-block:: csv
-        index_in_hdf5   audio_name  bgn_sample  end_sample  class_id    mix_rank
-        4768    YC0j69NCIKfw.wav    140480  204480  347 0
-        15640   Yip4ZCCgoVXc.wav    81920   145920  496 1
-        10614   YTRxF5y6hFbE.wav    130240  194240  270 0
-        9969    YRN1ho4G-W0o.wav    256000  320000  305 1
-        ...
-
-    When creating mixtures, for example:
-        mixture_0 = YC0j69NCIKfw.wav + Yip4ZCCgoVXc.wav
-        mixture_1 = YTRxF5y6hFbE.wav + YRN1ho4G-W0o.wav
-        ...
+    When creating mixtures:
+        mixture = SED(YC0j69NCIKfw.wav) + scale(SED(Yip4ZCCgoVXc.wav))
+        source = SED(YC0j69NCIKfw.wav)
 
     Args:
-        workspace: str, path
-        split: str, 'balanced_train' | 'test'
-        gpus: int
-        config_yaml: str, path of config file
+        indexes_hdf5_path: str, path
+        output_audios_dir: str, directory to write out audios
+        output_meta_csv_path: str, path to write out csv file
+        device: str, e.g., "cuda" | "cpu"
+
+    Returns:
+        NoReturn
     """
 
-    # arguments & parameters
-    # workspace = args.workspace
+    # Arguments & parameters
     indexes_hdf5_path = args.indexes_hdf5_path
-    # split = args.split
     output_audios_dir = args.output_audios_dir
     output_meta_csv_path = args.output_meta_csv_path
     device = args.device
@@ -66,35 +55,23 @@ def create_evaluation_data(args):
     mix_num = 2
 
     batch_size = 32
-    steps_per_epoch = 10000
+    steps_per_epoch = 10000  # dummy value for data loader
     num_workers = min(16, multiprocessing.cpu_count())
     sed_model_type = "Cnn14_DecisionLevelMax"
 
-    # if split == 'balanced_train':
-    #     indexes_hdf5_path = os.path.join(
-    #         workspace, "hdf5s/indexes/balanced_train.h5")
-
-    # elif split == 'test':
-    #     indexes_hdf5_path = os.path.join(workspace, "hdf5s/indexes/eval.h5")
-    # E.g., indexes_hdf5 looks like: {
-    #     'audio_name': (audios_num,),
-    #     'hdf5_path': (audios_num,),
-    #     'index_in_hdf5': (audios_num,),
-    #     'target': (audios_num, classes_num)
-    # }
-
+    # Load sound event detection mdoel.
     sed_model = load_pretrained_panns(
         model_type=sed_model_type,
         checkpoint_path=get_path(panns_paths_dict[sed_model_type]),
         freeze=True,
     ).to(device)
 
-    # dataset
+    # Dataset
     dataset = Dataset(
         steps_per_epoch=steps_per_epoch,
     )
 
-    # sampler
+    # Sampler
     sampler = BalancedSampler(
         indexes_hdf5_path=indexes_hdf5_path,
         batch_size=batch_size,
@@ -136,10 +113,8 @@ def create_evaluation_data(args):
         meta_dict['source{}_onset'.format(i + 1)] = []
 
     for class_id in range(classes_num):
-        sub_dir = os.path.join(
-            output_audios_dir,
-            "class_id={}".format(class_id))
-        os.makedirs(sub_dir, exist_ok=True)
+        sub_dir = Path(output_audios_dir, "class_id={}".format(class_id))
+        Path(sub_dir).mkdir(parents=True, exist_ok=True)
 
     for batch_index, batch_data_dict in enumerate(dataloader):
 
@@ -150,17 +125,24 @@ def create_evaluation_data(args):
             waveforms=batch_data_dict['waveform'],
             class_ids=batch_data_dict['class_id'],
         )
+        # {"waveform": (batch_size, segment_samples),
+        #  "class_id": (batch_size,),
+        #  "bgn_sample": (batch_size,),
+        #  "end_sample": (batch_size,)
+        # }
 
         mixtures, segments = anchor_segment_mixer(
             waveforms=segments_dict['waveform'],
         )
+        # mixtures: (batch_size, segment_samples)
+        # segments: (batch_size, segment_samples)
 
         mixtures = mixtures.data.cpu().numpy()
         segments = segments.data.cpu().numpy()
 
-        source_names = batch_data_dict['audio_name']
-        class_ids = segments_dict['class_id']
-        bgn_samples = segments_dict['bgn_sample'].data.cpu().numpy()
+        source_names = batch_data_dict['audio_name']    # (batch_size,)
+        class_ids = segments_dict['class_id']   # (batch_size)
+        bgn_samples = segments_dict['bgn_sample'].data.cpu().numpy()    # (batch_size)
 
         for n in range(batch_size):
 
@@ -168,24 +150,27 @@ def create_evaluation_data(args):
 
             if count_dict[class_id] < eval_segments_per_class:
 
+                # Paths to write out wavs
                 mixture_name = "class_id={},index={:03d},mixture.wav".format(
                     class_id, count_dict[class_id])
+
                 source_name = "class_id={},index={:03d},source.wav".format(
                     class_id, count_dict[class_id])
 
-                mixture_path = os.path.join(
-                    output_audios_dir,
-                    "class_id={}".format(class_id),
-                    mixture_name)
-                source_path = os.path.join(
+                mixture_path = Path(output_audios_dir, 
+                    "class_id={}".format(class_id), mixture_name)
+
+                source_path = Path(
                     output_audios_dir,
                     "class_id={}".format(class_id),
                     source_name)
 
+                # Write out mixture and source
                 soundfile.write(
                     file=mixture_path,
                     data=mixtures[n],
                     samplerate=sample_rate)
+
                 soundfile.write(
                     file=source_path,
                     data=segments[n],
@@ -200,12 +185,13 @@ def create_evaluation_data(args):
                 for i in range(mix_num):
                     meta_dict['source{}_name'.format(
                         i + 1)].append(source_names[(n + i) % batch_size])
+
                     meta_dict['source{}_onset'.format(
                         i + 1)].append(bgn_samples[(n + i) % batch_size] / sample_rate)
+
                     meta_dict['source{}_class_id'.format(
                         i + 1)].append(class_ids[(n + i) % batch_size])
 
-                ###
                 meta_dict['audio_name'].append(source_name)
                 meta_dict['source1_name'].append(source_names[n])
                 meta_dict['source1_onset'].append(bgn_samples[n] / sample_rate)
@@ -220,6 +206,7 @@ def create_evaluation_data(args):
 
         finished_n = np.sum([count_dict[class_id]
                             for class_id in range(classes_num)])
+
         print('Finished: {} / {}'.format(finished_n,
               eval_segments_per_class * classes_num))
 
@@ -227,10 +214,11 @@ def create_evaluation_data(args):
             break
 
     write_meta_dict_to_csv(meta_dict, output_meta_csv_path)
+    
     print("Write csv to {}".format(output_meta_csv_path))
 
 
-def all_classes_finished(count_dict, segments_per_class):
+def all_classes_finished(count_dict: Dict, segments_per_class: int) -> bool:
     r"""Check if all sound classes have #segments_per_class segments in
     count_dict.
 
@@ -254,32 +242,38 @@ def all_classes_finished(count_dict, segments_per_class):
     return True
 
 
-def write_meta_dict_to_csv(meta_dict, output_meta_csv_path):
+def write_meta_dict_to_csv(meta_dict: Dict, output_meta_csv_path: str) -> NoReturn:
     r"""Write meta dict into a csv file.
 
     Args:
         meta_dict: dict, e.g., {
-            'index_in_hdf5': (segments_num,),
-            'audio_name': (segments_num,),
-            'class_id': (segments_num,),
+            "audio_name": (segments_num,),
+            "source1_name": (segments_num,),
+            "source1_class_id": (segments_num,),
+            "source1_onset": (segments_num,),
+            "source2_name": (segments_num,),
+            "source2_class_id": (segments_num,),
+            "source2_onset": (segments_num,),
         }
-        output_csv_path: str
+        output_csv_path: str, path to write out the csv file
+
+    Returns:
+        NoReturn
     """
 
     keys = list(meta_dict.keys())
+    segments_num = len(meta_dict[keys[0]])
 
-    items_num = len(meta_dict[keys[0]])
-
-    os.makedirs(os.path.dirname(output_meta_csv_path), exist_ok=True)
-
+    Path(output_meta_csv_path).parent.mkdir(parents=True, exist_ok=True)
+    
     with open(output_meta_csv_path, 'w') as fw:
 
         fw.write(','.join(keys) + "\n")
 
-        for n in range(items_num):
+        for n in range(segments_num):
 
             fw.write(",".join([str(meta_dict[key][n]) for key in keys]) + "\n")
-
+    
     print('Write out to {}'.format(output_meta_csv_path))
 
 
@@ -289,15 +283,7 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(dest="mode")
 
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--workspace", type=str, required=True)
     parser.add_argument("--indexes_hdf5_path", type=str, required=True)
-    # parser.add_argument(
-    #     "--split",
-    #     type=str,
-    #     required=True,
-    #     choices=[
-    #         "balanced_train",
-    #         "test"])
     parser.add_argument("--output_audios_dir", type=str, required=True)
     parser.add_argument(
         "--output_meta_csv_path",

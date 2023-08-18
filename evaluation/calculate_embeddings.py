@@ -1,16 +1,30 @@
-import re
+import argparse
 import os
 import pickle
-import argparse
+import re
 from pathlib import Path
-import museval
+from typing import Dict, NoReturn, Tuple
 
-from uss.inference import calculate_query_emb, load_ss_model
 from uss.config import SAMPLE_RATE
+from uss.inference import calculate_query_emb, load_ss_model
 from uss.utils import parse_yaml
 
 
-def calculate_embeddings(args):
+def calculate_embeddings(args) -> NoReturn:
+    r"""Calculate the query embeddings of sound classes from the training set.
+
+    Args:
+        config_yaml: str, path of the config
+        checkpoint_path, str, path of the checkpoint
+        dataset_type, str, "audioset" | "fsdkaggle" | "fsd50k" | "slakh2100" | 
+            "musdb18" | "voicebank-demand"
+        audios_dir: str, directory of evaluation audios
+        output_embs_dir: str, directory to write out embeddings
+        device: str, "cuda" | "cpu"
+
+    Returns:
+        NoReturn
+    """
     
     config_yaml = args.config_yaml
     checkpoint_path = args.checkpoint_path
@@ -25,13 +39,18 @@ def calculate_embeddings(args):
 
     configs = parse_yaml(config_yaml)
 
+    # Load the USS model to calculate the query embeddings.
     pl_model = load_ss_model(
         configs=configs,
         checkpoint_path=checkpoint_path,
     ).to(device)
 
-    paths_dict, remove_sil = get_paths_dict(dataset_type=dataset_type, audios_dir=audios_dir)
-
+    paths_dict, remove_sil = get_paths_dict(
+        dataset_type=dataset_type, audios_dir=audios_dir)
+    # E.g., paths_dict: {"Aircraft": [
+    #     ".../label=Aircraft/label=Aircraft,index=000,source.wav", ...], ...}
+    # remove_sil: bool
+    
     labels = sorted(paths_dict.keys())
 
     for label in labels:
@@ -47,15 +66,27 @@ def calculate_embeddings(args):
             batch_size=8,
             query_paths=query_paths,
         )
-
-        output_emb_path = Path(output_embs_dir, "{}.pkl".format(label))
+        # (dimension,)
+        
+        output_emb_path = Path(output_embs_dir, "label={}.pkl".format(label))
         Path(output_emb_path).parent.mkdir(parents=True, exist_ok=True)
 
         pickle.dump(avg_query_condition, open(output_emb_path, "wb"))
         print("Write out to {}".format(output_emb_path))
 
 
-def get_paths_dict(dataset_type, audios_dir):
+def get_paths_dict(dataset_type: str, audios_dir: str) -> Tuple[Dict, bool]:
+    r"""Get audio paths to calcualte query embeddings.
+
+    Args:
+        dataset_type: str
+        audios_dir: str
+
+    Returns:
+        paths_dict: Dict, e.g., {"Aircraft": [
+            ".../label=Aircraft/label=Aircraft,index=000,source.wav", ...], ...}
+        remove_sil: bool
+    """
 
     if dataset_type in ["audioset", "fsdkaggle2018", "fsd50k", "slakh2100"]:
 
@@ -67,7 +98,6 @@ def get_paths_dict(dataset_type, audios_dir):
             
             label = re.search('=(.*)', sub_dir).group(1)
             audio_paths = sorted(Path(audios_dir, sub_dir).glob("*source.wav"))
-            
             paths_dict[label] = audio_paths
 
         remove_sil = False
@@ -107,12 +137,12 @@ def get_paths_dict(dataset_type, audios_dir):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config_yaml', type=str)
-    parser.add_argument('--checkpoint_path', type=str)
-    parser.add_argument('--dataset_type', type=str)
-    parser.add_argument('--audios_dir', type=str)
-    parser.add_argument('--output_embs_dir', type=str)
-    parser.add_argument('--device', type=str)
+    parser.add_argument('--config_yaml', type=str, required=True)
+    parser.add_argument('--checkpoint_path', type=str, required=True)
+    parser.add_argument('--dataset_type', type=str, required=True)
+    parser.add_argument('--audios_dir', type=str, required=True)
+    parser.add_argument('--output_embs_dir', type=str, required=True)
+    parser.add_argument('--device', type=str, default="cuda")
 
     args = parser.parse_args()
     

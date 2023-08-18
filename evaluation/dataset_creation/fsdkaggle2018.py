@@ -1,25 +1,30 @@
 import argparse
-import os
 import time
-import pickle
-import csv
-# import pathlib
 from pathlib import Path
+from typing import List, NoReturn, Tuple
 
-import h5py
-import soundfile
-import torch
 import librosa
 import numpy as np
 import pandas as pd
-
+import soundfile
+import torch
+from evaluation.dataset_creation.audioset import (all_classes_finished,
+                                                  write_meta_dict_to_csv)
+from uss.config import SAMPLE_RATE
 from uss.data.anchor_segment_mixers import get_energy_ratio
 from uss.utils import trunc_or_repeat_to_length
-from uss.config import SAMPLE_RATE
 
 
-def parse_meta_csv(meta_csv):
+def parse_meta_csv(meta_csv: str) -> Tuple[List[str], List[str]]:
+    r"""Parse csv file.
 
+    Args:
+        meta_csv: str, path of csv file
+
+    Returns:
+        audio_names: List[str]
+        labels: List[str]
+    """
     df = pd.read_csv(meta_csv, sep=',')
     audio_names = df["fname"].values
     labels = df["label"].values
@@ -27,8 +32,20 @@ def parse_meta_csv(meta_csv):
     return audio_names, labels
 
     
-def create_evaluation_data(args):
+def create_evaluation_data(args) -> NoReturn:
+    r"""Create 2-second <mixture, source> pairs for evaluation.
 
+    Args:
+        dataset_dir: str, directory of the FSDKaggle2018 dataset.
+        split: str, "train" | "test"
+        output_audios_dir: str, directory to write out audios
+        output_meta_csv_path: str, path to write out csv file
+
+    Returns:
+        NoReturn
+    """
+
+    # Args & parameters
     dataset_dir = args.dataset_dir
     split = args.split
     output_audios_dir = args.output_audios_dir
@@ -70,7 +87,7 @@ def create_evaluation_data(args):
 
     while True:
 
-        indexes = random_state.permutation(audios_num - 1)
+        indexes = random_state.permutation(audios_num)
 
         for i in indexes:
 
@@ -108,9 +125,7 @@ def create_evaluation_data(args):
 
                     mixture = segment1 + segment2
 
-                    # soundfile.write(file="_zz1.wav", data=source1, samplerate=sample_rate)
-                    # soundfile.write(file="_zz2.wav", data=source2, samplerate=sample_rate)
-
+                    # Paths to write out wavs
                     mixture_name = "label={},index={:03d},mixture.wav".format(
                         label, count_dict[label])
 
@@ -129,10 +144,12 @@ def create_evaluation_data(args):
 
                     Path(mixture_path).parent.mkdir(parents=True, exist_ok=True)
 
+                    # Write out mixture and source
                     soundfile.write(
                         file=mixture_path,
                         data=mixture,
                         samplerate=sample_rate)
+
                     soundfile.write(
                         file=source_path,
                         data=segment1,
@@ -156,62 +173,8 @@ def create_evaluation_data(args):
             break
 
     write_meta_dict_to_csv(meta_dict, output_meta_csv_path)
-    print("Write csv to {}".format(output_meta_csv_path))
-
+    
     print('Time: {:.3f} s'.format(time.time() - total_time))
-
-
-def all_classes_finished(count_dict, segments_per_class):
-    r"""Check if all sound classes have #segments_per_class segments in
-    count_dict.
-
-    Args:
-        count_dict: dict, e.g., {
-            0: 12,
-            1: 4,
-            ...,
-            526: 33,
-        }
-        segments_per_class: int
-
-    Returns:
-        bool
-    """
-
-    for label in count_dict.keys():
-        if count_dict[label] < segments_per_class:
-            return False
-
-    return True
-
-
-def write_meta_dict_to_csv(meta_dict, output_meta_csv_path):
-    r"""Write meta dict into a csv file.
-
-    Args:
-        meta_dict: dict, e.g., {
-            'index_in_hdf5': (segments_num,),
-            'audio_name': (segments_num,),
-            'class_id': (segments_num,),
-        }
-        output_csv_path: str
-    """
-
-    keys = list(meta_dict.keys())
-
-    items_num = len(meta_dict[keys[0]])
-
-    Path(output_meta_csv_path).parent.mkdir(parents=True, exist_ok=True)
-
-    with open(output_meta_csv_path, 'w') as fw:
-
-        fw.write(','.join(keys) + "\n")
-
-        for n in range(items_num):
-
-            fw.write(",".join([str(meta_dict[key][n]) for key in keys]) + "\n")
-
-    print('Write out to {}'.format(output_meta_csv_path))
 
 
 if __name__ == "__main__":
@@ -224,7 +187,6 @@ if __name__ == "__main__":
     parser.add_argument("--output_audios_dir", type=str, required=True)
     parser.add_argument("--output_meta_csv_path", type=str, required=True)
 
-    # Parse arguments.
     args = parser.parse_args()
 
     create_evaluation_data(args)

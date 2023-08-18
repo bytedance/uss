@@ -1,4 +1,0 @@
-01a.yaml		emb
-01b.yaml		soft
-02a.yaml		emb, kqq lr
-
