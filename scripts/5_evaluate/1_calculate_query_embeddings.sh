@@ -35,7 +35,7 @@ python evaluation/calculate_embeddings.py \
 	--checkpoint_path=$CHECKPOINT_PATH \
 	--dataset_type="musdb18" \
 	--audios_dir="datasets/musdb18hq/train" \
-	--output_embs_dir="${WORKSPACE}/evaluation_embeddings/musdb18" \
+	--output_embs_dir="${WORKSPACE}/evaluation_embeddings/${DATASET_TYPE}/${BASE_CONFIG}" \
 	--device=$DEVICE
 
 # Voicebank-Demand
@@ -44,5 +44,5 @@ python evaluation/calculate_embeddings.py \
 	--checkpoint_path=$CHECKPOINT_PATH \
 	--dataset_type="voicebank-demand" \
 	--audios_dir="datasets/voicebank-demand" \
-	--output_embs_dir="${WORKSPACE}/evaluation_embeddings/voicebank-demand" \
+	--output_embs_dir="${WORKSPACE}/evaluation_embeddings/${DATASET_TYPE}/${BASE_CONFIG}" \
 	--device=$DEVICE

@@ -228,6 +228,8 @@ def load_ss_model(
         map_location="cpu",
     )
 
+    print("------ Please ignore the the above UserWarning. ------")
+
     return pl_model
 
 

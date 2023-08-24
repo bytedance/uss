@@ -228,7 +228,7 @@ bash scripts/2_create_evaluation_data/slakh2100.sh
 | AudioSet         | Audio   | 527           | 29.3             |          |
 | FSDKaggle2018    | Audio   | 41            | 2.3              |          |
 | FSD50k           | Audio   | 195           | 10.8             |          |
-| Slakh2100        | Music   |               |                  |          |
+| Slakh2100        | Music   | 148           |                  |          |
 | MUSDB18          | Music   | 4             |                  | https://zenodo.org/record/3338373 |
 | Voicebank-Demand | Speech  | 1             |                  | https://datashare.ed.ac.uk/handle/10283/1942?show=full |
 

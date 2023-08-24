@@ -332,13 +332,13 @@ def calculate_metrics(
 
             (sdrs0, _, _, _) = museval.evaluate(
                 references=est[None, :, None], 
-                estimates=ref[None, :, None],
+                estimates=mix[None, :, None],
                 win=sample_rate,
                 hop=sample_rate,
             )
             sdr0 = np.nanmedian(sdrs0)
             metrics["musdb18_sdri"] = metrics["musdb18_sdr"] - sdr0
-
+            
         elif metric_type in ["pesq", "ssnr", "csig", "cbak", "covl"]:
 
             import pysepm
