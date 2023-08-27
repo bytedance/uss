@@ -73,6 +73,12 @@ Download our pretrained checkpoint:
 
 ```bash
 wget -O "pretrained.ckpt" "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D1000000.ckpt"
+
+mkdir -p "./downloaded_checkpoints"
+wget -O "./downloaded_checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=1000000.ckpt
+" "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D1000000.ckpt"
+
+wget -O "./downloaded_checkpoints/ss_model=resunet30,querynet=emb,data=balanced,devices=1,steps=1000000.ckpt" xxx
 ```
 
 Then perform the inference:
@@ -161,15 +167,15 @@ workspaces/uss
               └── unbalanced_train_part40.h5
 </pre>
 
-### 4.3 Create evaluation data
+### 4.3 Create validation data
 
-Create 100 2-second mixture and source pairs to evaluate the separation result of each sound class. There are in total 52,700 2-second pairs for 527 sound classes.
+Create 100 2-second mixture and source pairs to evaluate the separation result of each sound class. There are in total 52,700 2-second pairs for 527 sound classes. The validation data is used to calculate the loss during training.
 
 ```bash
 bash scripts/2_create_evaluation_data/audioset.sh
 ```
 
-The evaluation data look like:
+The validation data look like:
 <pre>
 workspaces/uss
 └── evaluation
@@ -209,13 +215,13 @@ CUDA_VISIBLE_DEVICES=0 python uss/train.py \
 
 ### 5 Evaluation
 
-We provide data to evaluate the USS system on AudioSet, FSDKaggle2018, FSD50k, Slakh2100, MUSDB18, and Voicebank-Demand datasets.
+We provide AudioSet, FSDKaggle2018, FSD50k, Slakh2100, MUSDB18, and Voicebank-Demand datasets to evaluate the USS system.
 
 5.0 Data processing
 
 **Users can skip this stage** and directly download the processed evaluation data listed in the table below.
 
-In case the users wish to know more details of the evaluation data creation, please run the following scripts.
+In case the users wish to process the evaluation data by themselves, please run the following scripts.
 
 ```bash
 bash scripts/2_create_evaluation_data/fsdkaggle2018.sh
@@ -223,14 +229,14 @@ bash scripts/2_create_evaluation_data/fsd50k.sh
 bash scripts/2_create_evaluation_data/slakh2100.sh
 ````
 
-| Dataset          | Type    | Sound classes | Duration (hours) | Download |
+| Dataset          | Type    | Sound classes | Size             | Download |
 |------------------|---------|---------------|------------------|----------|
-| AudioSet         | Audio   | 527           | 29.3             |          |
-| FSDKaggle2018    | Audio   | 41            | 2.3              |          |
-| FSD50k           | Audio   | 195           | 10.8             |          |
-| Slakh2100        | Music   | 148           |                  |          |
-| MUSDB18          | Music   | 4             |                  | https://zenodo.org/record/3338373 |
-| Voicebank-Demand | Speech  | 1             |                  | https://datashare.ed.ac.uk/handle/10283/1942?show=full |
+| AudioSet         | Audio   | 527           | 25.4 GB          | [Baidu](https://pan.baidu.com/s/1VUhjmFau3FlqDf2IDpjUhw), pwd: lcew |
+| FSDKaggle2018    | Audio   | 41            | 2.0 GB           | [Baidu]](https://pan.baidu.com/s/1PAMj9N6QmUFVZB7-RPxY5A), pwd: qw8l |
+| FSD50k           | Audio   | 195           | 9.4 GB           | [Baidu](https://pan.baidu.com/s/1qK5LZ87BG7uv9eq2jhCrsA), pwd: mn0j |
+| Slakh2100        | Music   | 148           | 7.3 GB           | [Baidu](https://pan.baidu.com/s/1KRGYI0EWHDjLmYkSnoDcQw), pwd: iv42 |
+| MUSDB18          | Music   | 4             | 22.7 GB          | https://zenodo.org/record/3338373 |
+| Voicebank-Demand | Speech  | 1             | 2.8 GB           | https://datashare.ed.ac.uk/handle/10283/1942?show=full |
 
 ## 5.1 Calculate the query embeddings of datasets. 
 

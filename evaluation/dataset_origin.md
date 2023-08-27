@@ -1,7 +1,9 @@
 
-## A list of datasets used for evaluation, including AudioSet, FSDKaggle2018, FSD50k, Slakh2100, MUSDB18, Voicebank-Demand. 
+## Origin Dataset for Evaluation
 
-The AudioSet, FSDKaggle2018, FSD50k, and Slakh2100 datasets are processed into 2-second segments. The MUSDB18 and Voicebank-Demand datasets remain their durations for fair comparison with previous works.
+**Users can skip this stage** and directly download the processed evaluation data. In case the users wish to process the evaluation data by themselves, please see details below.
+
+The evaluation datasets include AudioSet, FSDKaggle2018, FSD50k, Slakh2100, MUSDB18, Voicebank-Demand. The AudioSet, FSDKaggle2018, FSD50k, and Slakh2100 datasets are processed into 2-second segments. The MUSDB18 and Voicebank-Demand datasets remain their durations for fair comparison with previous works.
 
 Here is a list of datasets. Please ensure the datasets are completely downloaded and have the following tree structure.
 

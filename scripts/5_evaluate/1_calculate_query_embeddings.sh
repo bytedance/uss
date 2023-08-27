@@ -2,7 +2,8 @@
 WORKSPACE="./workspaces/uss"    # Default workspace directory
 
 CONFIG_YAML="./scripts/train_configs/ss_model=resunet30,querynet=emb,data=full.yaml"
-CHECKPOINT_PATH="checkpoints/ss_model=resunet30,querynet=emb,data=balanced,devices=1,steps=1000000.ckpt"
+
+CHECKPOINT_PATH="./downloaded_checkpoints/ss_model=resunet30,querynet=emb,data=balanced,devices=1,steps=1000000.ckpt"
 
 BASE_CONFIG=`basename $CHECKPOINT_PATH .ckpt`
 
