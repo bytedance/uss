@@ -79,7 +79,7 @@ mkdir -p "./downloaded_checkpoints"
 wget -O "./downloaded_checkpoints/ss_model=resunet30,querynet=at_soft,data=full,devices=8,step=1000000.ckpt
 " "https://huggingface.co/RSNuts/Universal_Source_Separation/resolve/main/uss_material/ss_model%3Dresunet30%2Cquerynet%3Dat_soft%2Cdata%3Dfull%2Cdevices%3D8%2Cstep%3D1000000.ckpt"
 
-wget -O "./downloaded_checkpoints/ss_model=resunet30,querynet=emb,data=balanced,devices=1,steps=1000000.ckpt" xxx
+wget -O "./downloaded_checkpoints/ss_model=resunet30,querynet=emb,data=balanced,devices=1,steps=1000000.ckpt" "https://huggingface.co/RSNuts/Universal_Source_Separation/blob/main/uss_material/ss_model%3Dresunet30%2Cquerynet%3Demb%2Cdata%3Dbalanced%2Cdevices%3D1%2Csteps%3D1000000.ckpt"
 ```
 
 Then perform the inference:
