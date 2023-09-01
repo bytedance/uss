@@ -232,12 +232,12 @@ bash scripts/2_create_evaluation_data/slakh2100.sh
 
 | Dataset          | Type    | Sound classes | Size             | Download |
 |------------------|---------|---------------|------------------|----------|
-| AudioSet         | Audio   | 527           | 25.4 GB          | [Baidu](https://pan.baidu.com/s/1VUhjmFau3FlqDf2IDpjUhw), pwd: lcew |
-| FSDKaggle2018    | Audio   | 41            | 2.0 GB           | [Baidu]](https://pan.baidu.com/s/1PAMj9N6QmUFVZB7-RPxY5A), pwd: qw8l |
-| FSD50k           | Audio   | 195           | 9.4 GB           | [Baidu](https://pan.baidu.com/s/1qK5LZ87BG7uv9eq2jhCrsA), pwd: mn0j |
-| Slakh2100        | Music   | 148           | 7.3 GB           | [Baidu](https://pan.baidu.com/s/1KRGYI0EWHDjLmYkSnoDcQw), pwd: iv42 |
-| MUSDB18          | Music   | 4             | 22.7 GB          | https://zenodo.org/record/3338373 |
-| Voicebank-Demand | Speech  | 1             | 2.8 GB           | https://datashare.ed.ac.uk/handle/10283/1942?show=full |
+| AudioSet         | Audio   | 527           | 25.4 GB          | [[Baidu Link]](https://pan.baidu.com/s/1VUhjmFau3FlqDf2IDpjUhw), pwd: lcew |
+| FSDKaggle2018    | Audio   | 41            | 2.0 GB           | [[Baidu Link]](https://pan.baidu.com/s/1PAMj9N6QmUFVZB7-RPxY5A), pwd: qw8l |
+| FSD50k           | Audio   | 195           | 9.4 GB           | [[Baidu Link]](https://pan.baidu.com/s/1qK5LZ87BG7uv9eq2jhCrsA), pwd: mn0j |
+| Slakh2100        | Music   | 148           | 7.3 GB           | [[Baidu Link]](https://pan.baidu.com/s/1KRGYI0EWHDjLmYkSnoDcQw), pwd: iv42 |
+| MUSDB18          | Music   | 4             | 22.7 GB          | [[Zenodo Link]](https://zenodo.org/record/3338373) |
+| Voicebank-Demand | Speech  | 1             | 2.8 GB           | [[Official Link]](https://datashare.ed.ac.uk/handle/10283/1942?show=full) |
 
 ## 5.1 Calculate the query embeddings of datasets. 
 
